@@ -73,7 +73,7 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
 
 // Generate dengan Gemini API
 const generateWithGemini = async (apiKey, systemInstruction, userText, images = []) => {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   
   let parts = [{ text: userText }];
   
@@ -230,7 +230,7 @@ function ApiKeySetup({ user, onComplete }) {
     
     try {
       // Test API key
-      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
       const testResponse = await fetch(testUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
