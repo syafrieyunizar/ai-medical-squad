@@ -121,7 +121,8 @@ function LoginPage({ onLogin }) {
     setLoading(true);
     setError('');
     try {
-      const redirectUrl = window.location.origin + '/auth/callback';
+      // Use root URL for redirect - Supabase will handle the token exchange
+      const redirectUrl = window.location.origin;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -1498,30 +1499,27 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Handle OAuth callback - extract tokens from URL hash
-    const handleAuthCallback = async () => {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const accessToken = hashParams.get('access_token');
-      
-      if (accessToken) {
-        // Clear the hash from URL
-        window.history.replaceState(null, '', window.location.pathname);
-      }
-    };
-
+    // Handle OAuth callback - Supabase automatically handles tokens from URL hash
     // Check for existing session
     const checkSession = async () => {
       try {
-        await handleAuthCallback();
+        // First, let Supabase handle any tokens in the URL
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        const { data: { session } } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Session error:', error);
+        }
+        
         if (session?.user) {
+          console.log('Session found:', session.user.email);
           setUser(session.user);
           // Check for stored API key
           const storedKey = localStorage.getItem(`gemini_api_key_${session.user.id}`);
           if (storedKey) {
             setApiKey(storedKey);
           }
+        } else {
+          console.log('No session found');
         }
       } catch (error) {
         console.error('Session check error:', error);
@@ -1534,15 +1532,27 @@ export default function App() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
+      
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
         const storedKey = localStorage.getItem(`gemini_api_key_${session.user.id}`);
         if (storedKey) {
           setApiKey(storedKey);
         }
+        setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setApiKey(null);
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        setUser(session.user);
+      } else if (event === 'INITIAL_SESSION' && session?.user) {
+        setUser(session.user);
+        const storedKey = localStorage.getItem(`gemini_api_key_${session.user.id}`);
+        if (storedKey) {
+          setApiKey(storedKey);
+        }
+        setLoading(false);
       }
     });
 
