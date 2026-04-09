@@ -73,7 +73,7 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
 
 // Generate dengan Gemini API
 const generateWithGemini = async (apiKey, systemInstruction, userText, images = []) => {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
   
   let parts = [{ text: userText }];
   
@@ -90,7 +90,7 @@ const generateWithGemini = async (apiKey, systemInstruction, userText, images = 
     systemInstruction: { parts: [{ text: systemInstruction }] }
   };
 
-  let retries = 5;
+  let retries = 3;
   let delay = 1000;
   while (retries > 0) {
     try {
@@ -99,7 +99,15 @@ const generateWithGemini = async (apiKey, systemInstruction, userText, images = 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 400 || response.status === 401 || response.status === 403) {
+          throw new Error('API Key tidak valid atau tidak memiliki akses. Silakan periksa API Key di Settings.');
+        }
+        throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (error) {
@@ -215,7 +223,6 @@ function LoginPage({ onLogin }) {
 // API Key Setup Component
 function ApiKeySetup({ user, onComplete }) {
   const [apiKey, setApiKey] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
@@ -225,32 +232,10 @@ function ApiKeySetup({ user, onComplete }) {
       return;
     }
     
-    setLoading(true);
-    setError('');
-    
-    try {
-      // Test API key
-      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-      const testResponse = await fetch(testUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Test' }] }]
-        })
-      });
-      
-      if (!testResponse.ok) {
-        throw new Error('API Key tidak valid. Silakan periksa kembali.');
-      }
-
-      // Save to localStorage and complete
-      localStorage.setItem(`gemini_api_key_${user.id}`, apiKey);
-      onComplete(apiKey);
-    } catch (err) {
-      setError(err.message || 'Gagal memvalidasi API Key');
-    } finally {
-      setLoading(false);
-    }
+    // Skip validation - just save and proceed
+    // Validation will happen when user actually calls the AI
+    localStorage.setItem(`gemini_api_key_${user.id}`, apiKey);
+    onComplete(apiKey);
   };
 
   return (
@@ -298,14 +283,9 @@ function ApiKeySetup({ user, onComplete }) {
           <Button
             data-testid="submit-api-key-btn"
             type="submit"
-            disabled={loading}
             className="w-full h-12 bg-[#2C4A3B] hover:bg-[#1A2E26] text-white font-medium"
           >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              'Validasi & Simpan'
-            )}
+            Simpan & Lanjutkan
           </Button>
         </form>
 
