@@ -1,0 +1,81 @@
+{
+  "theme": "LIGHT",
+  "archetype": "Organic & Earthy",
+  "domain": "Health, Medical, SaaS",
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "IBM Plex Sans",
+    "weights": {
+      "headings": "font-light to font-medium",
+      "body": "font-normal to font-medium",
+      "labels": "font-bold tracking-widest uppercase"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl tracking-tight leading-none",
+      "h2": "text-2xl sm:text-3xl tracking-tight",
+      "h3": "text-xl sm:text-2xl",
+      "body": "text-base leading-relaxed",
+      "labels": "text-xs tracking-[0.2em] uppercase"
+    }
+  },
+  "colors": {
+    "background": "#F8F7F3",
+    "surface": "#FFFFFF",
+    "primary": "#2C4A3B",
+    "secondary": "#E3E0D8",
+    "accent": "#C56F5D",
+    "text_main": "#1A2E26",
+    "text_muted": "#5C6B64",
+    "border": "#E3E0D8",
+    "error": "#B74944",
+    "success": "#3B6051"
+  },
+  "layout_spacing": {
+    "base_padding": "p-6 md:p-8 lg:p-12",
+    "grid_gap": "gap-6 md:gap-8",
+    "container_max": "max-w-7xl",
+    "bento_mode": "Control Room Grid"
+  },
+  "surface_strategy": {
+    "style": "Neumorphism (Clay & Crisp)",
+    "description": "Flat solid backgrounds with a 1px crisp border (border-[#E3E0D8]) to ground it. No glassmorphism (feels cold for health). Use sharp inner contrasts and subtle ambient shadows only on hover."
+  },
+  "components_instructions": {
+    "navigation_header": "Solid background header with a 1px bottom border. Must include Logo, Account Dropdown, Settings Dialog trigger, and New Session CTA.",
+    "wizard_stepper": "Vertical 'Editorial Ribbon' stepper on the left for desktop, horizontal scrollable for mobile. Active step uses primary color (#2C4A3B) with a subtle left border highlight. Inactive steps are muted (#5C6B64).",
+    "forms_inputs": "Use Shadcn UI forms heavily customized to remove the 'Vercel' look. Inputs should have a soft background (#F8F7F3), 1px border, and focus states that ring with #2C4A3B.",
+    "cards_widgets": "Flat, rectangular, cardless-feel where possible. For distinct groups (like Patient Vitals), use a 1px border and a very subtle shadow (shadow-sm).",
+    "buttons": "Primary buttons: bg-[#2C4A3B] text-white hover:bg-[#1A2E26]. Accent buttons (like Generate SOAP): bg-[#C56F5D] text-white hover:bg-[#A65B4C]. Secondary: border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3].",
+    "tabs": "Use Shadcn Tabs for switching between 'AI Mode' and 'Manual Mode' in Physical Exam.",
+    "modals_dialogs": "Use Shadcn Dialog for the Settings menu (Autotext dictionary, Greeting template, WhatsApp number, Gemini API Key). Dialogs must have solid #FFFFFF backgrounds, no heavy glass blur."
+  },
+  "motion_interaction": {
+    "hover_states": "Buttons and links must have explicit hover text colors and background shifts. Cards lift slightly (-translate-y-1) with a shadow-md on hover.",
+    "transitions": "transition-all duration-300 ease-in-out for opacities and transforms. Never transition 'all'.",
+    "focus": "focus:ring-2 focus:ring-[#2C4A3B]/30 focus:outline-none focus:ring-offset-2"
+  },
+  "media_assets": {
+    "images": [
+      {
+        "category": "Login Hero Background",
+        "url": "https://images.unsplash.com/photo-1636089944703-24d36e540e63?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwxfHxtZWRpY2FsJTIwc3RldGhvc2NvcGUlMjBtaW5pbWFsfGVufDB8fHx8MTc3NTc1MzU4OHww&ixlib=rb-4.1.0&q=85",
+        "description": "Minimalist photo of a stethoscope resting near a plant. Evokes calm, earthy, organic archetype. Perfect for splitting the login screen (50% image, 50% solid form)."
+      }
+    ],
+    "icons": {
+      "library": "lucide-react",
+      "instruction": "Use lucide-react (already installed). Keep stroke width at 1.5 for a sophisticated, light feel."
+    }
+  },
+  "accessibility_testing": {
+    "contrast": "Ensure text contrast meets APCA/WCAG standards. Text over primary buttons must be pure white. Text over backgrounds must be dark charcoal (#1A2E26).",
+    "data_testid": "All interactive elements (inputs, buttons, wizard steps, tabs) MUST have a data-testid attribute in kebab-case (e.g., data-testid='login-button', data-testid='wizard-step-1', data-testid='generate-soap-btn')."
+  },
+  "specific_flows": {
+    "step_1_anamnesis": "Large textarea. Must have a 'Process with AI' button that visually indicates the transition from raw notes to structured text.",
+    "step_2_physical": "Toggle between AI input (textarea) and Manual input (grid of number inputs for HR, BP, RR, Temp, etc.).",
+    "step_3_assessment": "Drag-and-drop zone with dashed border. Image preview. 'Analyze Image' button.",
+    "step_4_planning": "Input field supporting autocomplete/dropdown for autotext injection.",
+    "step_5_final": "A read-only 'document' view imitating a medical chart. Includes a prominent 'Send via WhatsApp' button (accent color)."
+  }
+}
