@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import "@/App.css";
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { 
   Stethoscope, 
   Settings, 
@@ -21,14 +22,22 @@ import {
   Check,
   AlertTriangle,
   Loader2,
-  User,
   Key,
   FileText,
   Activity,
   ClipboardList,
   Pill,
-  Send
+  Send,
+  UserPlus,
+  Trash2,
+  Plus,
+  Shield,
+  Clock,
+  Calendar
 } from 'lucide-react';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
 
 const DEFAULT_STATUS_GENERALIS = `Kepala/Leher :
 Konj. pucat (-) Sklera ikterik (-) 
@@ -59,6 +68,11 @@ Akral Hangat
 +/+
 +/+
 Edema (-)`;
+
+// Whitelist Context
+const WhitelistContext = createContext(null);
+
+export const useWhitelist = () => useContext(WhitelistContext);
 
 // Helper function untuk mengubah file gambar ke Base64
 const fileToBase64 = (file) => new Promise((resolve, reject) => {
@@ -119,28 +133,434 @@ const generateWithGemini = async (apiKey, systemInstruction, userText, images = 
   }
 };
 
+// Access Denied Page
+function AccessDeniedPage({ onSignOut }) {
+  return (
+    <div className="min-h-screen bg-[#F8F7F3] flex items-center justify-center p-8" data-testid="access-denied-page">
+      <div className="text-center space-y-8 max-w-md">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-100 text-red-600 mb-4">
+          <Shield className="w-10 h-10" strokeWidth={1.5} />
+        </div>
+        <h1 className="font-heading text-3xl font-medium text-[#1A2E26]">
+          Akses Ditolak
+        </h1>
+        <p className="text-[#5C6B64] text-lg leading-relaxed">
+          Anda tidak terdaftar sebagai pengguna. Harap hubungi admin untuk mendapatkan akses.
+        </p>
+        <Button
+          data-testid="access-denied-signout-btn"
+          onClick={onSignOut}
+          className="h-14 px-12 bg-red-600 hover:bg-red-700 text-white font-bold text-lg"
+        >
+          <LogOut className="w-5 h-5 mr-2" />
+          Sign Out
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Whitelist Management Modal
+function WhitelistModal({ open, onClose }) {
+  const [emails, setEmails] = useState([]);
+  const [newEmail, setNewEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [bypass, setBypass] = useState({ is_active: false, expiry_datetime: null });
+  const [showDurationDialog, setShowDurationDialog] = useState(false);
+  const [showBypassDurationDialog, setShowBypassDurationDialog] = useState(false);
+  const [durationType, setDurationType] = useState('lifetime');
+  const [customDate, setCustomDate] = useState('');
+  const [customTime, setCustomTime] = useState('');
+  const [pendingEmail, setPendingEmail] = useState('');
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [emailsRes, bypassRes] = await Promise.all([
+        fetch(`${API}/whitelist/emails`),
+        fetch(`${API}/whitelist/bypass`)
+      ]);
+      if (emailsRes.ok) setEmails(await emailsRes.json());
+      if (bypassRes.ok) setBypass(await bypassRes.json());
+    } catch (err) {
+      console.error('Error fetching whitelist data:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) fetchData();
+  }, [open, fetchData]);
+
+  const handleAddEmail = () => {
+    if (!newEmail.trim() || !newEmail.includes('@')) return;
+    setPendingEmail(newEmail.trim());
+    setShowDurationDialog(true);
+  };
+
+  const confirmAddEmail = async () => {
+    setLoading(true);
+    try {
+      let expiryDatetime = null;
+      if (durationType === 'custom' && customDate && customTime) {
+        expiryDatetime = new Date(`${customDate}T${customTime}`).toISOString();
+      }
+      
+      await fetch(`${API}/whitelist/emails`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: pendingEmail, expiry_datetime: expiryDatetime })
+      });
+      
+      setNewEmail('');
+      setPendingEmail('');
+      setShowDurationDialog(false);
+      setDurationType('lifetime');
+      setCustomDate('');
+      setCustomTime('');
+      fetchData();
+    } catch (err) {
+      console.error('Error adding email:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteEmail = async (email) => {
+    if (!window.confirm(`Hapus ${email} dari whitelist?`)) return;
+    try {
+      await fetch(`${API}/whitelist/emails/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting email:', err);
+    }
+  };
+
+  const handleBypassToggle = (checked) => {
+    if (checked) {
+      setShowBypassDurationDialog(true);
+    } else {
+      updateBypass(false, null);
+    }
+  };
+
+  const confirmBypassEnable = async () => {
+    let expiryDatetime = null;
+    if (durationType === 'custom' && customDate && customTime) {
+      expiryDatetime = new Date(`${customDate}T${customTime}`).toISOString();
+    }
+    await updateBypass(true, expiryDatetime);
+    setShowBypassDurationDialog(false);
+    setDurationType('lifetime');
+    setCustomDate('');
+    setCustomTime('');
+  };
+
+  const updateBypass = async (isActive, expiryDatetime) => {
+    try {
+      await fetch(`${API}/whitelist/bypass`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: isActive, expiry_datetime: expiryDatetime })
+      });
+      fetchData();
+    } catch (err) {
+      console.error('Error updating bypass:', err);
+    }
+  };
+
+  const formatExpiry = (expiry) => {
+    if (!expiry) return 'Lifetime';
+    const date = new Date(expiry);
+    return date.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-xl flex items-center gap-2">
+            <Shield className="w-5 h-5 text-[#2C4A3B]" />
+            Whitelist Management
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6 mt-4">
+          {/* Bypass Toggle */}
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label className="text-sm font-bold text-amber-800 flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Bypass Mode
+                </Label>
+                <p className="text-xs text-amber-700">
+                  {bypass.is_active 
+                    ? `Aktif - Semua user dapat mengakses${bypass.expiry_datetime ? ` (sampai ${formatExpiry(bypass.expiry_datetime)})` : ' (Lifetime)'}`
+                    : 'Nonaktif - Hanya whitelist yang dapat akses'}
+                </p>
+              </div>
+              <Switch
+                data-testid="bypass-toggle"
+                checked={bypass.is_active}
+                onCheckedChange={handleBypassToggle}
+              />
+            </div>
+          </div>
+
+          {/* Add Email */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-[#1A2E26]">Tambah Email ke Whitelist</Label>
+            <div className="flex gap-2">
+              <Input
+                data-testid="whitelist-email-input"
+                type="email"
+                placeholder="email@example.com"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="flex-1 bg-[#F8F7F3] border-[#E3E0D8]"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddEmail()}
+              />
+              <Button
+                data-testid="add-whitelist-btn"
+                onClick={handleAddEmail}
+                disabled={!newEmail.includes('@')}
+                className="bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Email List */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-[#1A2E26]">Email Terdaftar ({emails.length})</Label>
+            <div className="max-h-60 overflow-y-auto border border-[#E3E0D8] rounded-lg bg-[#F8F7F3]">
+              {emails.length === 0 ? (
+                <p className="p-4 text-center text-[#5C6B64] text-sm">Belum ada email terdaftar</p>
+              ) : (
+                emails.map((item, idx) => (
+                  <div key={idx} className={`flex items-center justify-between p-3 ${idx !== emails.length - 1 ? 'border-b border-[#E3E0D8]' : ''}`}>
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${item.is_active ? 'text-[#1A2E26]' : 'text-[#5C6B64] line-through'}`}>
+                        {item.email}
+                      </p>
+                      <p className="text-xs text-[#5C6B64] flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatExpiry(item.expiry_datetime)}
+                        {!item.is_active && <span className="text-red-500 ml-2">(Expired)</span>}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteEmail(item.email)}
+                      className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Duration Dialog for Email */}
+        <Dialog open={showDurationDialog} onOpenChange={setShowDurationDialog}>
+          <DialogContent className="max-w-sm bg-white">
+            <DialogHeader>
+              <DialogTitle className="font-heading text-lg">Durasi Akses</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <p className="text-sm text-[#5C6B64]">Pilih durasi akses untuk <strong>{pendingEmail}</strong></p>
+              
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-[#F8F7F3]">
+                  <input
+                    type="radio"
+                    name="duration"
+                    value="lifetime"
+                    checked={durationType === 'lifetime'}
+                    onChange={(e) => setDurationType(e.target.value)}
+                    className="w-4 h-4 text-[#2C4A3B]"
+                  />
+                  <span className="text-sm font-medium">Lifetime (Sampai dihapus manual)</span>
+                </label>
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-[#F8F7F3]">
+                  <input
+                    type="radio"
+                    name="duration"
+                    value="custom"
+                    checked={durationType === 'custom'}
+                    onChange={(e) => setDurationType(e.target.value)}
+                    className="w-4 h-4 text-[#2C4A3B]"
+                  />
+                  <span className="text-sm font-medium">Custom (Pilih tanggal & waktu)</span>
+                </label>
+              </div>
+
+              {durationType === 'custom' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-[#5C6B64]">Tanggal</Label>
+                    <Input
+                      type="date"
+                      value={customDate}
+                      onChange={(e) => setCustomDate(e.target.value)}
+                      className="bg-[#F8F7F3] border-[#E3E0D8]"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-[#5C6B64]">Waktu</Label>
+                    <Input
+                      type="time"
+                      value={customTime}
+                      onChange={(e) => setCustomTime(e.target.value)}
+                      className="bg-[#F8F7F3] border-[#E3E0D8]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" onClick={() => setShowDurationDialog(false)} className="flex-1">
+                  Batal
+                </Button>
+                <Button 
+                  onClick={confirmAddEmail} 
+                  disabled={loading || (durationType === 'custom' && (!customDate || !customTime))}
+                  className="flex-1 bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Tambah'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Duration Dialog for Bypass */}
+        <Dialog open={showBypassDurationDialog} onOpenChange={setShowBypassDurationDialog}>
+          <DialogContent className="max-w-sm bg-white">
+            <DialogHeader>
+              <DialogTitle className="font-heading text-lg">Durasi Bypass</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <p className="text-sm text-[#5C6B64]">Pilih durasi untuk bypass mode</p>
+              
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-[#F8F7F3]">
+                  <input
+                    type="radio"
+                    name="bypassDuration"
+                    value="lifetime"
+                    checked={durationType === 'lifetime'}
+                    onChange={(e) => setDurationType(e.target.value)}
+                    className="w-4 h-4 text-[#2C4A3B]"
+                  />
+                  <span className="text-sm font-medium">Lifetime (Sampai dimatikan manual)</span>
+                </label>
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-[#F8F7F3]">
+                  <input
+                    type="radio"
+                    name="bypassDuration"
+                    value="custom"
+                    checked={durationType === 'custom'}
+                    onChange={(e) => setDurationType(e.target.value)}
+                    className="w-4 h-4 text-[#2C4A3B]"
+                  />
+                  <span className="text-sm font-medium">Custom (Pilih tanggal & waktu)</span>
+                </label>
+              </div>
+
+              {durationType === 'custom' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-[#5C6B64]">Tanggal</Label>
+                    <Input
+                      type="date"
+                      value={customDate}
+                      onChange={(e) => setCustomDate(e.target.value)}
+                      className="bg-[#F8F7F3] border-[#E3E0D8]"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-[#5C6B64]">Waktu</Label>
+                    <Input
+                      type="time"
+                      value={customTime}
+                      onChange={(e) => setCustomTime(e.target.value)}
+                      className="bg-[#F8F7F3] border-[#E3E0D8]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" onClick={() => setShowBypassDurationDialog(false)} className="flex-1">
+                  Batal
+                </Button>
+                <Button 
+                  onClick={confirmBypassEnable}
+                  disabled={durationType === 'custom' && (!customDate || !customTime)}
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+                >
+                  Aktifkan Bypass
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Login Component
-function LoginPage({ onLogin }) {
+function LoginPage({ onLogin, onSignOut }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showWhitelistModal, setShowWhitelistModal] = useState(false);
 
-  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError('');
     try {
-      // Use root URL for redirect - Supabase will handle the token exchange
       const redirectUrl = window.location.origin;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-        }
+        options: { redirectTo: redirectUrl }
       });
       if (error) throw error;
     } catch (err) {
       setError(err.message || 'Gagal login dengan Google');
       setLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async () => {
+    setPasswordLoading(true);
+    setPasswordError('');
+    try {
+      const res = await fetch(`${API}/whitelist/verify-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      
+      if (!res.ok) {
+        throw new Error('Password tidak valid');
+      }
+      
+      setShowPasswordModal(false);
+      setPassword('');
+      setShowWhitelistModal(true);
+    } catch (err) {
+      setPasswordError(err.message || 'Password tidak valid');
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -173,7 +593,7 @@ function LoginPage({ onLogin }) {
           </div>
 
           {/* Login Form */}
-          <div className="space-y-6 bg-white p-8 rounded-2xl border border-[#E3E0D8] shadow-sm">
+          <div className="space-y-4 bg-white p-8 rounded-2xl border border-[#E3E0D8] shadow-sm">
             <div className="text-center space-y-1">
               <h2 className="font-heading text-xl font-medium text-[#1A2E26]">Selamat Datang</h2>
               <p className="text-sm text-[#5C6B64]">Masuk untuk melanjutkan ke aplikasi</p>
@@ -205,6 +625,16 @@ function LoginPage({ onLogin }) {
               Masuk dengan Google
             </Button>
 
+            <Button
+              data-testid="add-whitelist-login-btn"
+              onClick={() => setShowPasswordModal(true)}
+              variant="outline"
+              className="w-full h-10 border-[#E3E0D8] text-[#5C6B64] hover:bg-[#F8F7F3] font-medium text-sm gap-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              Add Whitelist
+            </Button>
+
             <p className="text-xs text-center text-[#5C6B64]">
               Dengan masuk, Anda menyetujui penggunaan data untuk keperluan aplikasi medis.
             </p>
@@ -216,12 +646,57 @@ function LoginPage({ onLogin }) {
           </p>
         </div>
       </div>
+
+      {/* Password Modal */}
+      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
+        <DialogContent className="max-w-sm bg-white">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-lg flex items-center gap-2">
+              <Shield className="w-5 h-5 text-[#2C4A3B]" />
+              Admin Access
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label className="text-sm text-[#1A2E26]">Password Admin</Label>
+              <Input
+                data-testid="admin-password-input"
+                type="password"
+                placeholder="Masukkan password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handlePasswordSubmit()}
+                className="bg-[#F8F7F3] border-[#E3E0D8]"
+              />
+            </div>
+            {passwordError && (
+              <p className="text-sm text-red-600">{passwordError}</p>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowPasswordModal(false)} className="flex-1">
+                Batal
+              </Button>
+              <Button 
+                data-testid="verify-password-btn"
+                onClick={handlePasswordSubmit}
+                disabled={passwordLoading || !password}
+                className="flex-1 bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"
+              >
+                {passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verifikasi'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Whitelist Modal */}
+      <WhitelistModal open={showWhitelistModal} onClose={() => setShowWhitelistModal(false)} />
     </div>
   );
 }
 
 // API Key Setup Component
-function ApiKeySetup({ user, onComplete }) {
+function ApiKeySetup({ user, onComplete, onSignOut }) {
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState('');
 
@@ -232,8 +707,6 @@ function ApiKeySetup({ user, onComplete }) {
       return;
     }
     
-    // Skip validation - just save and proceed
-    // Validation will happen when user actually calls the AI
     localStorage.setItem(`gemini_api_key_${user.id}`, apiKey);
     onComplete(apiKey);
   };
@@ -289,16 +762,27 @@ function ApiKeySetup({ user, onComplete }) {
           </Button>
         </form>
 
-        <p className="text-center text-xs text-[#5C6B64]">
-          API Key disimpan secara lokal dan tidak dikirim ke server kami.
-        </p>
+        <div className="text-center space-y-3">
+          <p className="text-xs text-[#5C6B64]">
+            API Key disimpan secara lokal dan tidak dikirim ke server kami.
+          </p>
+          <Button
+            data-testid="signout-apikey-btn"
+            variant="ghost"
+            onClick={onSignOut}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
 
 // Main App Component
-function MainApp({ user, apiKey, onLogout, onChangeApiKey }) {
+function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   
@@ -370,37 +854,49 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey }) {
     localStorage.setItem('aiSquad_wa', whatsappNumber);
   }, [autotexts, greetingTemplate, whatsappNumber]);
 
+  // Whitelist check on actions
+  const withWhitelistCheck = async (action) => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    action();
+  };
+
   // New Session Handler
   const handleNewSession = () => {
-    if(window.confirm("Yakin ingin memulai sesi pasien baru? Semua data saat ini akan dihapus.")) {
-      setCurrentStep(1);
-      setPatientIdentity('');
-      setAnamInput('');
-      setAnamNarrative('');
-      setAnamSaran('');
-      setAnamAlert('');
-      setIsAnamFollowUp(false);
-      setOppaMode('AI');
-      setVitals({ kes: 'CM', gcs: 'E4V5M6', td: '120/80', n: '80', rr: '20', t: '36.5', spo2: '98% RA' });
-      setAbnormalFinding('');
-      setOppaImages([]);
-      setOppaOutput('');
-      setManualStatusGeneralis(DEFAULT_STATUS_GENERALIS);
-      setDiagText('');
-      setDiagInterpretation('');
-      setDiagImages([]);
-      setIsDiagGenerated(false);
-      setPaluiMode('AI');
-      setPaluiInput('');
-      setPaluiOutput('');
-      setManualPalui('');
-      setFinalSoap('');
-      setEzzyError('');
-    }
+    withWhitelistCheck(() => {
+      if(window.confirm("Yakin ingin memulai sesi pasien baru? Semua data saat ini akan dihapus.")) {
+        setCurrentStep(1);
+        setPatientIdentity('');
+        setAnamInput('');
+        setAnamNarrative('');
+        setAnamSaran('');
+        setAnamAlert('');
+        setIsAnamFollowUp(false);
+        setOppaMode('AI');
+        setVitals({ kes: 'CM', gcs: 'E4V5M6', td: '120/80', n: '80', rr: '20', t: '36.5', spo2: '98% RA' });
+        setAbnormalFinding('');
+        setOppaImages([]);
+        setOppaOutput('');
+        setManualStatusGeneralis(DEFAULT_STATUS_GENERALIS);
+        setDiagText('');
+        setDiagInterpretation('');
+        setDiagImages([]);
+        setIsDiagGenerated(false);
+        setPaluiMode('AI');
+        setPaluiInput('');
+        setPaluiOutput('');
+        setManualPalui('');
+        setFinalSoap('');
+        setEzzyError('');
+      }
+    });
   };
 
   // ANAM Handler
   const handleAnamProcess = async () => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    
     if (!anamInput.trim()) return;
     setIsAnamLoading(true);
     setAnamAlert('');
@@ -522,6 +1018,9 @@ Udang (+), gatal gatal
 
   // OPPA Handlers
   const handleOppaImageUpload = async (e) => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    
     const files = Array.from(e.target.files);
     const newImages = await Promise.all(files.map(async file => {
       const base64Data = await fileToBase64(file);
@@ -534,6 +1033,9 @@ Udang (+), gatal gatal
   };
 
   const handleOppaProcessAI = async () => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    
     setIsOppaLoading(true);
     const baseTemplate = `Kepala/Leher:\nKonj. pucat (-), Sklera ikterik (-)\n\nThorax:\nParu:\nRetraksi (-)\nSDV +/+\nWh -/-\nRh -/-\n\nJantung: S1 S2 reguler, murmur (-), gallop (-)\n\nAbd:\nI: Distensi (-)\nA: BU (+)\nP: Timpani (+)\nP: Nyeri tekan (-)\n\nEkstremitas:\nAkral Hangat +/+\nEdema -/-`;
 
@@ -572,6 +1074,9 @@ Template Normal:\n${baseTemplate}`;
 
   // DIAG Handlers
   const handleDiagImageUpload = async (e) => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    
     const files = Array.from(e.target.files);
     const newImages = await Promise.all(files.map(async file => {
       const base64Data = await fileToBase64(file);
@@ -584,6 +1089,9 @@ Template Normal:\n${baseTemplate}`;
   };
 
   const handleDiagProcess = async () => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    
     setIsDiagLoading(true);
     setDiagInterpretation('');
     
@@ -630,6 +1138,9 @@ Contoh diagnosis yang benar: NSTEACS dd Dispepsia Sindrom + Obs. Dispneu ec Edem
 
   // PALUI Handler
   const handlePaluiProcess = async () => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    
     if (!paluiInput.trim()) return;
     setIsPaluiLoading(true);
     
@@ -670,7 +1181,10 @@ Observasi TTV dan KU`;
   };
 
   // EZZY Handler
-  const handleEzzyGenerate = () => {
+  const handleEzzyGenerate = async () => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    
     setEzzyError('');
     setFinalSoap('');
 
@@ -726,7 +1240,10 @@ Observasi TTV dan KU`;
   };
 
   // Copy & WA Handlers
-  const handleCopyClipboard = () => {
+  const handleCopyClipboard = async () => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    
     if (!finalSoap) return;
     
     if (navigator.clipboard && window.isSecureContext) {
@@ -755,7 +1272,10 @@ Observasi TTV dan KU`;
     }
   };
 
-  const handleSendWA = () => {
+  const handleSendWA = async () => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    
     if (!finalSoap) return;
     
     const text = encodeURIComponent(finalSoap);
@@ -770,6 +1290,13 @@ Observasi TTV dan KU`;
     }
     
     window.open(waUrl, '_blank');
+  };
+
+  // Navigation with whitelist check
+  const handleStepChange = async (step) => {
+    const isAllowed = await checkWhitelist();
+    if (!isAllowed) return;
+    setCurrentStep(step);
   };
 
   // Wizard Steps
@@ -961,7 +1488,7 @@ Observasi TTV dan KU`;
                     <button
                       key={step.id}
                       data-testid={`wizard-step-${step.id}`}
-                      onClick={() => setCurrentStep(step.id)}
+                      onClick={() => handleStepChange(step.id)}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 ${
                         isActive
                           ? 'wizard-step-active'
@@ -1448,7 +1975,7 @@ Observasi TTV dan KU`;
             <div className="flex justify-between items-center mt-6">
               <Button
                 data-testid="prev-step-btn"
-                onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
+                onClick={() => handleStepChange(Math.max(1, currentStep - 1))}
                 variant="outline"
                 className={`border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3] ${currentStep === 1 ? 'opacity-0 pointer-events-none' : ''}`}
               >
@@ -1458,7 +1985,7 @@ Observasi TTV dan KU`;
               
               <Button
                 data-testid="next-step-btn"
-                onClick={() => setCurrentStep(prev => Math.min(5, prev + 1))}
+                onClick={() => handleStepChange(Math.min(5, currentStep + 1))}
                 className={`bg-[#2C4A3B] hover:bg-[#1A2E26] text-white ${currentStep === 5 ? 'opacity-0 pointer-events-none' : ''}`}
               >
                 Langkah Selanjutnya
@@ -1477,13 +2004,31 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [apiKey, setApiKey] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  // Check whitelist function
+  const checkWhitelist = useCallback(async () => {
+    if (!user?.email) return true;
+    
+    try {
+      const res = await fetch(`${API}/whitelist/check/${encodeURIComponent(user.email)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.is_whitelisted) {
+          setAccessDenied(true);
+          return false;
+        }
+        return true;
+      }
+    } catch (err) {
+      console.error('Whitelist check error:', err);
+    }
+    return true;
+  }, [user?.email]);
 
   useEffect(() => {
-    // Handle OAuth callback - Supabase automatically handles tokens from URL hash
-    // Check for existing session
     const checkSession = async () => {
       try {
-        // First, let Supabase handle any tokens in the URL
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -1491,15 +2036,23 @@ export default function App() {
         }
         
         if (session?.user) {
-          console.log('Session found:', session.user.email);
           setUser(session.user);
-          // Check for stored API key
+          
+          // Check whitelist
+          const res = await fetch(`${API}/whitelist/check/${encodeURIComponent(session.user.email)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (!data.is_whitelisted) {
+              setAccessDenied(true);
+              setLoading(false);
+              return;
+            }
+          }
+          
           const storedKey = localStorage.getItem(`gemini_api_key_${session.user.id}`);
           if (storedKey) {
             setApiKey(storedKey);
           }
-        } else {
-          console.log('No session found');
         }
       } catch (error) {
         console.error('Session check error:', error);
@@ -1510,12 +2063,27 @@ export default function App() {
 
     checkSession();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email);
+      console.log('Auth state changed:', event);
       
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
+        
+        // Check whitelist on sign in
+        try {
+          const res = await fetch(`${API}/whitelist/check/${encodeURIComponent(session.user.email)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (!data.is_whitelisted) {
+              setAccessDenied(true);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('Whitelist check error:', err);
+        }
+        
         const storedKey = localStorage.getItem(`gemini_api_key_${session.user.id}`);
         if (storedKey) {
           setApiKey(storedKey);
@@ -1524,6 +2092,7 @@ export default function App() {
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setApiKey(null);
+        setAccessDenied(false);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         setUser(session.user);
       } else if (event === 'INITIAL_SESSION' && session?.user) {
@@ -1543,6 +2112,7 @@ export default function App() {
     await supabase.auth.signOut();
     setUser(null);
     setApiKey(null);
+    setAccessDenied(false);
   };
 
   const handleApiKeyComplete = (key) => {
@@ -1567,14 +2137,19 @@ export default function App() {
     );
   }
 
+  // Access Denied
+  if (accessDenied && user) {
+    return <AccessDeniedPage onSignOut={handleLogout} />;
+  }
+
   // Not logged in
   if (!user) {
-    return <LoginPage onLogin={setUser} />;
+    return <LoginPage onLogin={setUser} onSignOut={handleLogout} />;
   }
 
   // Logged in but no API key
   if (!apiKey) {
-    return <ApiKeySetup user={user} onComplete={handleApiKeyComplete} />;
+    return <ApiKeySetup user={user} onComplete={handleApiKeyComplete} onSignOut={handleLogout} />;
   }
 
   // Fully authenticated
@@ -1584,6 +2159,7 @@ export default function App() {
       apiKey={apiKey} 
       onLogout={handleLogout}
       onChangeApiKey={handleChangeApiKey}
+      checkWhitelist={checkWhitelist}
     />
   );
 }
