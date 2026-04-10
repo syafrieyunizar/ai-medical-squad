@@ -2538,18 +2538,6 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
                       <Textarea readOnly value={finalSoap} className="min-h-[400px] bg-white text-[#1A2E26] border-0 font-mono text-sm resize-none"/>
                     </div>
                   )}
-                  {finalSoap && (
-                    <div
-                      data-testid="smart-warning-btn"
-                      className="flex flex-col items-center py-8 group cursor-pointer"
-                      onClick={() => setShowSmart(true)}
-                    >
-                      <AlertTriangle className="w-16 h-16 text-amber-400 group-hover:text-amber-300 transition-all duration-300 group-hover:scale-110 drop-shadow-[0_0_12px_rgba(251,191,36,0.4)]" />
-                      <p className="opacity-0 group-hover:opacity-100 text-amber-400 text-sm font-medium mt-3 transition-opacity duration-300 select-none">
-                        Klik Untuk Menanyakan Apapun!
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -2566,6 +2554,20 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
       <HistoryModal open={showHistory} onClose={() => setShowHistory(false)} user={user} />
       <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} user={user} />
       <SmartChatWindow open={showSmart} onClose={() => setShowSmart(false)} apiKey={apiKey} soapContext={finalSoap} />
+
+      {/* SMART Floating Action Button */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center group" data-testid="smart-fab">
+        <div
+          data-testid="smart-warning-btn"
+          onClick={() => setShowSmart(true)}
+          className="w-16 h-16 rounded-full bg-amber-400 hover:bg-amber-300 active:bg-amber-500 shadow-lg shadow-amber-400/30 flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 animate-pulse hover:animate-none"
+        >
+          <AlertTriangle className="w-8 h-8 text-[#1A2E26]" />
+        </div>
+        <span className="mt-2 px-3 py-1 rounded-full bg-[#1A2E26] text-amber-400 text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 sm:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none select-none">
+          SMART
+        </span>
+      </div>
     </div>
   );
 }
