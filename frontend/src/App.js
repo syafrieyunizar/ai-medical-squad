@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import "@/App.css";
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -74,7 +74,137 @@ Akral Hangat
 +/+
 Edema (-)`;
 
-// Prompts Context
+// SMART System Prompt
+const SMART_SYSTEM_PROMPT = `# SMART — Asisten Dokter Jaga IGD
+
+## IDENTITAS
+Kamu adalah Smart, asisten dokter jaga IGD yang berpengalaman. Kamu adalah teman sejawat dokter umum: 
+cepat, presisi, dan selalu siap. Gaya bicara: lugas, semi-formal, seperti diskusi antar dokter jaga.
+Kamu tidak perlu dipanggil dengan kata khusus. Setiap pesan yang masuk langsung kamu baca dan 
+respons sesuai konteksnya.
+
+---
+
+## PRINSIP UTAMA: BACA SITUASI, LANGSUNG EKSEKUSI
+
+Kamu secara otomatis mengenali jenis pertanyaan dan langsung menyesuaikan format jawaban.
+Tidak perlu user memilih mode. Tidak perlu konfirmasi dulu. Baca konteks → jawab tepat.
+
+---
+
+## DETEKSI KONTEKS OTOMATIS
+
+### MODE GAWAT DARURAT
+Aktif jika ada kata/frasa: tidak sadar, henti napas, henti jantung, syok, kejang aktif, 
+sesak berat, penurunan kesadaran, hipotensi berat, perdarahan masif, atau kalimat seperti 
+"pasien datang tidak sadar", "pasien tiba-tiba kolaps", "GCS turun", dll.
+
+Format jawaban:
+1. Tindakan SEGERA (detik pertama)
+2. Stabilisasi (menit pertama)
+3. Evaluasi & lanjutan
+
+Ringkas. Berurutan. Bisa langsung dieksekusi. Tanpa basa-basi.
+
+---
+
+### MODE TATALAKSANA
+Aktif jika ada kata: tatalaksana, manajemen, terapi, penanganan, obati, resep, protokol.
+
+Format jawaban:
+- Diagnosis kerja
+- Terapi awal
+- Obat + dosis (sesuaikan BB/usia jika disebutkan)
+- Monitoring
+- Kapan rujuk
+
+---
+
+### MODE INTERPRETASI KLINIS
+Aktif jika ada: gambar EKG / X-ray / CT / USG / foto luka / hasil lab yang diunggah.
+
+Format jawaban EKG:
+1. Irama & rate
+2. Axis
+3. Gelombang P, PR interval
+4. Kompleks QRS
+5. Segmen ST & gelombang T
+6. Kesimpulan + implikasi klinis
+
+Format jawaban X-ray / imaging lain:
+1. Kualitas foto
+2. Temuan sistematis
+3. Kesan / diagnosis kerja
+4. Saran tindak lanjut
+
+Jika gambar kurang jelas: minta unggah ulang atau minta konteks klinis tambahan.
+
+---
+
+### MODE FARMAKOTERAPI
+Aktif jika ditanya dosis, nama obat, pilihan obat, atau interaksi.
+
+Format jawaban:
+- Obat pilihan + dosis + rute + durasi
+- Alternatif (termasuk yang tersedia di Fornas/BPJS jika relevan)
+- Perhatian khusus (kontraindikasi, interaksi dasar, kondisi pasien)
+- Jika data tidak cukup: tanyakan usia/BB/fungsi ginjal/hati secara spesifik
+
+---
+
+### MODE EDUKASI / DISKUSI KLINIS
+Aktif jika pertanyaan bersifat konseptual: "apa bedanya", "kenapa bisa", "jelaskan", 
+"bagaimana mekanisme", atau pertanyaan santai tanpa konteks pasien aktif.
+
+Format jawaban:
+- Jawab langsung, padat, terstruktur
+- Gunakan perbandingan atau analogi klinis jika membantu
+- Sertakan poin kunci yang paling relevan untuk praktik IGD
+- Tidak perlu terlalu akademik kecuali diminta
+
+---
+
+### MODE SOAP / DOKUMENTASI
+Aktif jika diminta buat SOAP, surat rujukan, resume medis, atau laporan jaga.
+
+Hasilkan dokumen terstruktur siap pakai, sesuaikan dengan konteks klinis yang diberikan.
+
+---
+
+## MEMORI KONTEKS
+Dalam satu sesi percakapan, kamu mengingat semua informasi pasien yang sudah disebutkan.
+Jika user menyambung kasus ("pasien tadi sekarang..."), kamu langsung hubungkan dengan 
+informasi sebelumnya tanpa perlu diulang.
+
+---
+
+## REFERENSI
+Setiap jawaban klinis didukung panduan terpercaya:
+- PNPK Kemenkes RI
+- Formularium Nasional (Fornas) terbaru
+- Panduan ACLS / ATLS / PALS
+- WHO, ESC, AHA, IDSA, PDPI, PAPDI, IDAI
+Sebutkan referensi singkat di akhir jawaban jika relevan. Format: [Nama Guideline/Institusi, Tahun]
+Jika tidak yakin referensi valid: nyatakan: "perlu verifikasi mandiri."
+
+---
+
+## BATASAN & KEAMANAN
+- Selalu sertakan satu baris disclaimer di akhir jawaban klinis: 
+  "Keputusan akhir tetap di tangan dokter yang memeriksa langsung."
+- Tidak memberikan diagnosis definitif tanpa data klinis yang memadai: minta klarifikasi spesifik.
+- Tidak memanipulasi data, membuat diagnosis fiktif, atau melanggar etik kedokteran.
+- Jika kasus di luar kapasitas dokter umum IGD: rekomendasikan rujukan spesialis secara eksplisit.
+
+---
+
+## PRINSIP JAWABAN
+- Cepat lebih penting dari panjang.
+- Urutan lebih penting dari kelengkapan.
+- Relevan IGD lebih penting dari teori akademik.
+- Jika situasi gawat: jawab dulu, diskusi kemudian.
+- JANGAN MENGGUNAKAN TANDA ASTERISK (*) ATAU MARKDOWN APAPUN di seluruh output. Gunakan plain text sepenuhnya.`;
+
 const PromptsContext = createContext(null);
 export const usePrompts = () => useContext(PromptsContext);
 
@@ -544,6 +674,188 @@ function ProfileModal({ open, onClose, user }) {
               )}
             </div>
           )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// SMART Chat Window
+function SmartChatWindow({ open, onClose, apiKey, soapContext }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (open) {
+      setMessages([]);
+      setInput('');
+      setImages([]);
+    }
+  }, [open]);
+
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    const newImages = await Promise.all(files.map(async file => {
+      const base64Data = await fileToBase64(file);
+      return { preview: URL.createObjectURL(file), ...base64Data };
+    }));
+    setImages(prev => [...prev, ...newImages]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSend = async () => {
+    if ((!input.trim() && images.length === 0) || loading) return;
+    setLoading(true);
+
+    const userMsg = { role: 'user', text: input, images: [...images] };
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
+    setInput('');
+    setImages([]);
+
+    try {
+      const contents = [];
+      updatedMessages.forEach((msg, idx) => {
+        const parts = [];
+        if (idx === 0 && msg.role === 'user' && soapContext) {
+          parts.push({ text: `[Konteks SOAP pasien saat ini]\n${soapContext}\n\n[Pertanyaan]\n${msg.text}` });
+        } else {
+          parts.push({ text: msg.text || '' });
+        }
+        if (msg.images && msg.images.length > 0) {
+          msg.images.forEach(img => {
+            parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+          });
+        }
+        contents.push({ role: msg.role === 'user' ? 'user' : 'model', parts });
+      });
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const payload = {
+        contents,
+        systemInstruction: { parts: [{ text: SMART_SYSTEM_PROMPT }] }
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 400 || response.status === 401 || response.status === 403) {
+          throw new Error('API Key tidak valid. Periksa API Key di Settings.');
+        }
+        throw new Error(errorData.error?.message || `Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Tidak ada respons.';
+      setMessages(prev => [...prev, { role: 'model', text: aiText }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'model', text: `Error: ${err.message}`, isError: true }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl bg-[#1A2E26] max-h-[90vh] overflow-hidden flex flex-col p-0 border-[#2C4A3B]" data-testid="smart-chat-window">
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10">
+          <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-heading text-lg font-medium text-white">SMART</h3>
+            <p className="text-xs text-white/50">Asisten Dokter Jaga IGD</p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-[300px] max-h-[55vh]">
+          {messages.length === 0 && (
+            <div className="text-center py-8">
+              <AlertTriangle className="w-12 h-12 text-amber-500/30 mx-auto mb-3" />
+              <p className="text-white/40 text-sm">Tanyakan apapun tentang pasien ini.</p>
+              <p className="text-white/30 text-xs mt-1">SMART membaca konteks SOAP Anda secara otomatis.</p>
+            </div>
+          )}
+          {messages.map((msg, idx) => (
+            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                msg.role === 'user'
+                  ? 'bg-[#2C4A3B] text-white'
+                  : msg.isError
+                  ? 'bg-red-500/20 text-red-200 border border-red-500/30'
+                  : 'bg-white/10 text-white/90'
+              }`}>
+                {msg.images && msg.images.length > 0 && (
+                  <div className="flex gap-2 flex-wrap mb-2">
+                    {msg.images.map((img, i) => (
+                      <img key={i} src={img.preview} alt="" className="w-16 h-16 rounded-lg object-cover border border-white/20" />
+                    ))}
+                  </div>
+                )}
+                <div className="text-sm whitespace-pre-wrap leading-relaxed">{msg.text}</div>
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-white/10 rounded-2xl px-4 py-3 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                <span className="text-white/60 text-sm">SMART sedang berpikir...</span>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <div className="border-t border-white/10 px-6 py-4">
+          {images.length > 0 && (
+            <div className="flex gap-2 flex-wrap mb-3">
+              {images.map((img, idx) => (
+                <div key={idx} className="relative w-14 h-14 rounded-lg border border-white/20 overflow-hidden group">
+                  <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                  <button onClick={() => setImages(images.filter((_, i) => i !== idx))} className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2 items-end">
+            <label className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 cursor-pointer transition flex-shrink-0">
+              <Upload className="w-4 h-4 text-white/60" />
+              <input ref={fileInputRef} type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
+            </label>
+            <Textarea
+              data-testid="smart-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              placeholder="Ketik pertanyaan..."
+              className="flex-1 min-h-[44px] max-h-[120px] bg-white/10 border-white/20 text-white placeholder:text-white/40 resize-none"
+              rows={1}
+            />
+            <Button
+              data-testid="smart-send-btn"
+              onClick={handleSend}
+              disabled={loading || (!input.trim() && images.length === 0)}
+              className="h-10 px-4 bg-amber-500 hover:bg-amber-600 text-white font-bold flex-shrink-0"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Tanyakan SMART'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -1430,6 +1742,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showSmart, setShowSmart] = useState(false);
   
   // Patient Identity
   const [patientIdentity, setPatientIdentity] = useState('');
@@ -2225,6 +2538,18 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
                       <Textarea readOnly value={finalSoap} className="min-h-[400px] bg-white text-[#1A2E26] border-0 font-mono text-sm resize-none"/>
                     </div>
                   )}
+                  {finalSoap && (
+                    <div
+                      data-testid="smart-warning-btn"
+                      className="flex flex-col items-center py-8 group cursor-pointer"
+                      onClick={() => setShowSmart(true)}
+                    >
+                      <AlertTriangle className="w-16 h-16 text-amber-400 group-hover:text-amber-300 transition-all duration-300 group-hover:scale-110 drop-shadow-[0_0_12px_rgba(251,191,36,0.4)]" />
+                      <p className="opacity-0 group-hover:opacity-100 text-amber-400 text-sm font-medium mt-3 transition-opacity duration-300 select-none">
+                        Klik Untuk Menanyakan Apapun!
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -2240,6 +2565,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
       <HistoryModal open={showHistory} onClose={() => setShowHistory(false)} user={user} />
       <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} user={user} />
+      <SmartChatWindow open={showSmart} onClose={() => setShowSmart(false)} apiKey={apiKey} soapContext={finalSoap} />
     </div>
   );
 }
