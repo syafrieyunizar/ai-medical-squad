@@ -36,7 +36,9 @@ import {
   Edit3,
   RotateCcw,
   Save,
-  Lock
+  Lock,
+  History,
+  Crown
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -330,6 +332,219 @@ function PromptEditorModal({ open, onClose }) {
             </div>
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// History Modal
+function HistoryModal({ open, onClose, user }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  const fetchHistory = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('soap_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(7);
+      if (error) throw error;
+      setHistory(data || []);
+    } catch (err) {
+      console.error('Error fetching history:', err);
+      setHistory([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (open) {
+      fetchHistory();
+      setSelectedItem(null);
+    }
+  }, [open, fetchHistory]);
+
+  const formatDate = (dateStr) => {
+    return new Date(dateStr).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl bg-white max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-xl flex items-center gap-2">
+            <History className="w-5 h-5 text-[#2C4A3B]" />
+            Riwayat Pasien
+          </DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-[#2C4A3B]" />
+          </div>
+        ) : selectedItem ? (
+          <div className="flex-1 overflow-y-auto space-y-4 mt-4">
+            <button
+              onClick={() => setSelectedItem(null)}
+              data-testid="history-back-btn"
+              className="flex items-center gap-2 text-sm text-[#2C4A3B] hover:text-[#1A2E26] font-medium"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Kembali ke daftar
+            </button>
+            <div className="p-4 bg-[#F8F7F3] rounded-xl border border-[#E3E0D8]">
+              <h3 className="font-bold text-[#1A2E26] mb-1">{selectedItem.patient_identity}</h3>
+              <p className="text-xs text-[#5C6B64]">{formatDate(selectedItem.created_at)}</p>
+            </div>
+            {selectedItem.interpretation && (
+              <div className="p-4 bg-[#2C4A3B]/5 rounded-xl border border-[#2C4A3B]/20">
+                <h3 className="text-sm font-bold text-[#2C4A3B] mb-2">Interpretasi AI:</h3>
+                <p className="text-sm whitespace-pre-wrap">{selectedItem.interpretation}</p>
+              </div>
+            )}
+            <div className="p-4 bg-[#F8F7F3] rounded-xl border border-[#E3E0D8]">
+              <h3 className="text-xs font-bold tracking-[0.2em] uppercase text-[#5C6B64] mb-3">SOAP</h3>
+              <pre className="text-sm whitespace-pre-wrap font-mono leading-relaxed text-[#1A2E26]">{selectedItem.final_soap}</pre>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto mt-4">
+            {history.length === 0 ? (
+              <div className="text-center py-12 text-[#5C6B64]">
+                <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">Belum ada riwayat pasien</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {history.map((item) => (
+                  <button
+                    key={item.id}
+                    data-testid={`history-item-${item.id}`}
+                    onClick={() => setSelectedItem(item)}
+                    className="w-full text-left p-4 rounded-xl border border-[#E3E0D8] hover:bg-[#F8F7F3] transition group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[#1A2E26] truncate">{item.patient_identity}</p>
+                        <p className="text-xs text-[#5C6B64] mt-1">{formatDate(item.created_at)}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-[#5C6B64] group-hover:text-[#2C4A3B] flex-shrink-0" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Profile Modal
+function ProfileModal({ open, onClose, user }) {
+  const [accountStatus, setAccountStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchAccountStatus = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const [emailsRes, bypassRes] = await Promise.all([
+        fetch(`${API}/whitelist/emails`),
+        fetch(`${API}/whitelist/bypass`)
+      ]);
+      const emails = emailsRes.ok ? await emailsRes.json() : [];
+      const bypassData = bypassRes.ok ? await bypassRes.json() : { is_active: false };
+
+      const myEmail = Array.isArray(emails) ? emails.find(e => e.email === user.email.toLowerCase()) : null;
+
+      if (myEmail && myEmail.is_active) {
+        setAccountStatus({ type: 'Premium', expiry: myEmail.expiry_datetime });
+      } else if (bypassData.is_active) {
+        setAccountStatus({ type: 'Free' });
+      } else {
+        setAccountStatus({ type: 'Free' });
+      }
+    } catch (err) {
+      console.error('Error fetching account status:', err);
+      setAccountStatus({ type: 'Free' });
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (open) fetchAccountStatus();
+  }, [open, fetchAccountStatus]);
+
+  const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
+  const fullName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0];
+  const email = user?.email;
+
+  const formatExpiry = (expiry) => {
+    if (!expiry) return 'Lifetime';
+    return new Date(expiry).toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm bg-white" data-testid="profile-modal">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-lg">Profil Akun</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center space-y-4 mt-4">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={fullName} className="w-20 h-20 rounded-full border-2 border-[#E3E0D8]" referrerPolicy="no-referrer" />
+          ) : (
+            <div className="w-20 h-20 rounded-full bg-[#2C4A3B] text-white flex items-center justify-center text-2xl font-bold">
+              {fullName?.charAt(0).toUpperCase() || 'U'}
+            </div>
+          )}
+          <div className="text-center">
+            <h3 className="font-heading text-lg font-medium text-[#1A2E26]">{fullName}</h3>
+            <p className="text-sm text-[#5C6B64]">{email}</p>
+          </div>
+
+          {loading ? (
+            <Loader2 className="w-5 h-5 animate-spin text-[#2C4A3B]" />
+          ) : (
+            <div className={`w-full p-4 rounded-xl border ${
+              accountStatus?.type === 'Premium'
+                ? 'bg-amber-50 border-amber-200'
+                : 'bg-[#F8F7F3] border-[#E3E0D8]'
+            }`}>
+              <div className="flex items-center gap-2 mb-1">
+                {accountStatus?.type === 'Premium' ? (
+                  <Crown className="w-4 h-4 text-amber-600" />
+                ) : (
+                  <Shield className="w-4 h-4 text-[#5C6B64]" />
+                )}
+                <span className={`text-sm font-bold ${
+                  accountStatus?.type === 'Premium' ? 'text-amber-800' : 'text-[#1A2E26]'
+                }`}>
+                  {accountStatus?.type === 'Premium' ? 'Premium' : 'Free'}
+                </span>
+              </div>
+              {accountStatus?.type === 'Premium' && (
+                <p className="text-xs text-amber-700 ml-6">
+                  Berlaku sampai: {formatExpiry(accountStatus.expiry)}
+                </p>
+              )}
+              {accountStatus?.type === 'Free' && (
+                <p className="text-xs text-[#5C6B64] ml-6">
+                  Akses melalui bypass mode
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -1213,6 +1428,8 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   const prompts = usePrompts();
   const [currentStep, setCurrentStep] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   
   // Patient Identity
   const [patientIdentity, setPatientIdentity] = useState('');
@@ -1552,6 +1769,18 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
     const compiled = `${finalGreeting}\n\n*${patientIdentity}*\n\nS)\n${safeAnamOutput}\n\nO)\nTTV: \n${vitalsStr}\n\nStatus Generalis:\n${statusGeneralisStr}\n\nA)\n${diagText || '(Belum ada diagnosis)'}\n\nP)\n${planningStr}`;
 
     setFinalSoap(compiled);
+
+    // Save to Supabase history
+    try {
+      await supabase.from('soap_history').insert({
+        user_id: user.id,
+        patient_identity: patientIdentity,
+        final_soap: compiled,
+        interpretation: diagInterpretation || null,
+      });
+    } catch (err) {
+      console.error('Error saving to history:', err);
+    }
   };
 
   // Copy & WA Handlers
@@ -1651,6 +1880,16 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
               >
                 <RefreshCw className="w-4 h-4" />
                 <span className="hidden sm:inline">Sesi Baru</span>
+              </Button>
+
+              <Button
+                data-testid="history-btn"
+                variant="outline"
+                size="icon"
+                onClick={() => setShowHistory(true)}
+                className="border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3]"
+              >
+                <History className="w-4 h-4" />
               </Button>
 
               <Dialog open={showSettings} onOpenChange={setShowSettings}>
@@ -1766,9 +2005,19 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
               {/* User Menu */}
               <div className="flex items-center gap-2 pl-2 border-l border-[#E3E0D8]">
-                <div className="w-8 h-8 rounded-full bg-[#2C4A3B] text-white flex items-center justify-center text-sm font-medium">
-                  {user?.email?.charAt(0).toUpperCase() || 'U'}
-                </div>
+                <button
+                  data-testid="profile-btn"
+                  onClick={() => setShowProfile(true)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-[#2C4A3B] transition flex-shrink-0"
+                >
+                  {(user?.user_metadata?.avatar_url || user?.user_metadata?.picture) ? (
+                    <img src={user.user_metadata.avatar_url || user.user_metadata.picture} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-full h-full bg-[#2C4A3B] text-white flex items-center justify-center text-sm font-medium">
+                      {user?.email?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                  )}
+                </button>
                 <Button
                   data-testid="logout-btn"
                   variant="ghost"
@@ -1879,7 +2128,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
                       </div>
                     </div>
                   )}
-                  <div className="space-y-4">
+                  <div className={`space-y-4 sticky bottom-0 z-10 bg-white -mx-6 px-6 pb-6 -mb-6 pt-4 rounded-b-2xl ${(anamNarrative || anamSaran) ? 'shadow-[0_-4px_12px_rgba(0,0,0,0.06)] border-t border-[#E3E0D8]' : ''}`}>
                     <Textarea data-testid="anam-input" placeholder={isAnamFollowUp ? "Ketik tambahan info..." : "Ketik keluhan pasien..."} value={anamInput} onChange={(e) => setAnamInput(e.target.value)} className="min-h-[120px] bg-[#F8F7F3] border-[#E3E0D8] resize-none" />
                     {anamAlert && (<div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm"><AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{anamAlert}</span></div>)}
                     <Button data-testid="process-anam-btn" onClick={handleAnamProcess} disabled={isAnamLoading || !anamInput.trim()} className="w-full h-12 bg-[#2C4A3B] hover:bg-[#1A2E26] text-white font-medium">
@@ -1903,7 +2152,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
                     <h3 className="text-xs font-bold tracking-[0.2em] uppercase text-[#5C6B64] mb-4">Tanda Vital</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       {[{l:'Kes',k:'kes'},{l:'GCS',k:'gcs'},{l:'TD',k:'td'},{l:'N',k:'n'},{l:'RR',k:'rr'},{l:'T',k:'t'},{l:'SpO2',k:'spo2'}].map(i=>(
-                        <div key={i.k}><Label className="text-xs text-[#5C6B64]">{i.l}</Label><Input value={vitals[i.k]} onChange={(e)=>setVitals({...vitals,[i.k]:e.target.value})} className="bg-white border-[#E3E0D8]"/></div>
+                        <div key={i.k}><Label className="text-xs text-[#5C6B64]">{i.l}</Label><Input value={vitals[i.k]} onChange={(e)=>setVitals({...vitals,[i.k]:e.target.value})} onFocus={(e)=>e.target.select()} className="bg-white border-[#E3E0D8]"/></div>
                       ))}
                     </div>
                   </div>
@@ -1988,6 +2237,9 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
           </main>
         </div>
       </div>
+
+      <HistoryModal open={showHistory} onClose={() => setShowHistory(false)} user={user} />
+      <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} user={user} />
     </div>
   );
 }
