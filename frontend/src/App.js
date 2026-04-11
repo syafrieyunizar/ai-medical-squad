@@ -38,7 +38,8 @@ import {
   Save,
   Lock,
   History,
-  Crown
+  Crown,
+  CheckCircle
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -693,13 +694,14 @@ function SmartChatWindow({ open, onClose, apiKey, soapContext }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    if (open) {
+  const handleResetSession = () => {
+    if (messages.length === 0) return;
+    if (window.confirm('Yakin ingin mereset sesi SMART? Semua percakapan akan dihapus.')) {
       setMessages([]);
       setInput('');
       setImages([]);
     }
-  }, [open]);
+  };
 
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
@@ -771,14 +773,27 @@ function SmartChatWindow({ open, onClose, apiKey, soapContext }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl bg-[#1A2E26] max-h-[90vh] overflow-hidden flex flex-col p-0 border-[#2C4A3B]" data-testid="smart-chat-window">
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10">
-          <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-heading text-lg font-medium text-white">SMART</h3>
+              <p className="text-xs text-white/50">Asisten Dokter Jaga IGD</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-heading text-lg font-medium text-white">SMART</h3>
-            <p className="text-xs text-white/50">Asisten Dokter Jaga IGD</p>
-          </div>
+          <Button
+            data-testid="smart-reset-btn"
+            variant="ghost"
+            size="sm"
+            onClick={handleResetSession}
+            disabled={messages.length === 0}
+            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 gap-1.5"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="text-xs">Reset Sesi</span>
+          </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-[300px] max-h-[55vh]">
@@ -805,7 +820,15 @@ function SmartChatWindow({ open, onClose, apiKey, soapContext }) {
                     ))}
                   </div>
                 )}
-                <div className="text-sm whitespace-pre-wrap leading-relaxed">{msg.text}</div>
+                <div className="text-sm whitespace-pre-wrap leading-relaxed">{
+                  msg.role === 'model' && !msg.isError
+                    ? msg.text.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
+                        part.startsWith('**') && part.endsWith('**')
+                          ? <strong key={i}>{part.slice(2, -2)}</strong>
+                          : part
+                      )
+                    : msg.text
+                }</div>
               </div>
             </div>
           ))}
@@ -1795,22 +1818,38 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   // Final SOAP State
   const [finalSoap, setFinalSoap] = useState('');
   const [ezzyError, setEzzyError] = useState('');
+  const [statusGeneralisTemplate, setStatusGeneralisTemplate] = useState(null);
 
-  // Load/Save localStorage
+  // Per-user localStorage keys
+  const userKey = useCallback((key) => `aiSquad_${user?.id || 'default'}_${key}`, [user]);
+
+  // Load/Save localStorage (per-user)
   useEffect(() => {
-    const savedAuto = localStorage.getItem('aiSquad_autotexts');
-    const savedGreeting = localStorage.getItem('aiSquad_greeting');
-    const savedWa = localStorage.getItem('aiSquad_wa');
+    if (!user?.id) return;
+    const savedAuto = localStorage.getItem(userKey('autotexts'));
+    const savedGreeting = localStorage.getItem(userKey('greeting'));
+    const savedWa = localStorage.getItem(userKey('wa'));
+    const savedSGTemplate = localStorage.getItem(userKey('statusGeneralisTemplate'));
     if (savedAuto) setAutotexts(JSON.parse(savedAuto));
     if (savedGreeting) setGreetingTemplate(savedGreeting);
     if (savedWa) setWhatsappNumber(savedWa);
-  }, []);
+    if (savedSGTemplate) {
+      setStatusGeneralisTemplate(savedSGTemplate);
+      setManualStatusGeneralis(savedSGTemplate);
+    }
+  }, [user, userKey]);
 
   useEffect(() => {
-    localStorage.setItem('aiSquad_autotexts', JSON.stringify(autotexts));
-    localStorage.setItem('aiSquad_greeting', greetingTemplate);
-    localStorage.setItem('aiSquad_wa', whatsappNumber);
-  }, [autotexts, greetingTemplate, whatsappNumber]);
+    if (!user?.id) return;
+    localStorage.setItem(userKey('autotexts'), JSON.stringify(autotexts));
+    localStorage.setItem(userKey('greeting'), greetingTemplate);
+    localStorage.setItem(userKey('wa'), whatsappNumber);
+  }, [autotexts, greetingTemplate, whatsappNumber, user, userKey]);
+
+  const handleSaveStatusGeneralisTemplate = () => {
+    setStatusGeneralisTemplate(manualStatusGeneralis);
+    localStorage.setItem(userKey('statusGeneralisTemplate'), manualStatusGeneralis);
+  };
 
   // New Session Handler
   const handleNewSession = async () => {
@@ -1830,7 +1869,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
       setAbnormalFinding('');
       setOppaImages([]);
       setOppaOutput('');
-      setManualStatusGeneralis(DEFAULT_STATUS_GENERALIS);
+      setManualStatusGeneralis(statusGeneralisTemplate || DEFAULT_STATUS_GENERALIS);
       setDiagText('');
       setDiagInterpretation('');
       setDiagImages([]);
@@ -1918,8 +1957,10 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
     setIsOppaLoading(true);
 
     const systemPrompt = prompts?.oppa || '';
+    const sgTemplate = statusGeneralisTemplate || DEFAULT_STATUS_GENERALIS;
+    const formatInstruction = `\n\nPENTING: Gunakan format pemeriksaan fisik berikut sebagai template output Status Generalis:\n${sgTemplate}\n\nIsi setiap bagian sesuai temuan klinis. Pertahankan struktur dan urutan format di atas.`;
 
-    let userPromptText = `Abnormal finding: ${abnormalFinding}`;
+    let userPromptText = `Abnormal finding: ${abnormalFinding}${formatInstruction}`;
 
     if (oppaImages.length > 0) {
       userPromptText += `\n\nIni adalah foto klinis pasien, identifikasi bagian tubuh, lalu berikan keterangan klinis sesuai format medis berikut di bagian bawah hasil fisik Anda (setelah Ekstremitas).
@@ -2479,7 +2520,14 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
                       {oppaOutput && <div className="p-4 bg-[#F8F7F3] rounded-xl border border-[#E3E0D8]"><pre className="text-sm whitespace-pre-wrap font-mono">{oppaOutput}</pre></div>}
                     </div>
                   ) : (
-                    <div><Label className="text-xs font-bold uppercase text-[#5C6B64]">Status Generalis</Label><Textarea value={manualStatusGeneralis} onChange={(e)=>setManualStatusGeneralis(e.target.value)} className="min-h-[400px] bg-[#F8F7F3] border-[#E3E0D8] font-mono text-sm"/></div>
+                    <div className="space-y-3"><Label className="text-xs font-bold uppercase text-[#5C6B64]">Status Generalis</Label><Textarea value={manualStatusGeneralis} onChange={(e)=>setManualStatusGeneralis(e.target.value)} className="min-h-[400px] bg-[#F8F7F3] border-[#E3E0D8] font-mono text-sm"/>
+                      {manualStatusGeneralis !== (statusGeneralisTemplate || DEFAULT_STATUS_GENERALIS) && (
+                        <Button data-testid="save-sg-template-btn" onClick={handleSaveStatusGeneralisTemplate} className="w-full bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"><Save className="w-4 h-4 mr-2"/>Simpan Template Status Generalis</Button>
+                      )}
+                      {statusGeneralisTemplate && statusGeneralisTemplate !== DEFAULT_STATUS_GENERALIS && (
+                        <p className="text-xs text-green-600 flex items-center gap-1"><CheckCircle className="w-3 h-3"/>Template tersimpan</p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
