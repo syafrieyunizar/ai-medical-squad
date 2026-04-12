@@ -8,7 +8,14 @@ import os
 import uuid
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+BASE_URL = (
+    os.environ.get("BACKEND_URL")
+    or os.environ.get("VITE_BACKEND_URL")
+    or os.environ.get("REACT_APP_BACKEND_URL")
+    or ""
+).rstrip("/")
+if BASE_URL and not BASE_URL.endswith("/api"):
+    BASE_URL = f"{BASE_URL}/api"
 
 class TestPasswordVerification:
     """Test POST /api/whitelist/verify-password endpoint"""

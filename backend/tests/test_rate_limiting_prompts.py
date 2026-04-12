@@ -18,9 +18,16 @@ import uuid
 import time
 
 # Get BASE_URL from environment
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+BASE_URL = (
+    os.environ.get("BACKEND_URL")
+    or os.environ.get("VITE_BACKEND_URL")
+    or os.environ.get("REACT_APP_BACKEND_URL")
+    or ""
+).rstrip("/")
+if BASE_URL and not BASE_URL.endswith("/api"):
+    BASE_URL = f"{BASE_URL}/api"
 if not BASE_URL:
-    raise ValueError("REACT_APP_BACKEND_URL environment variable not set")
+    raise ValueError("BACKEND_URL or VITE_BACKEND_URL environment variable not set")
 
 ADMIN_PASSWORD = "buriead"
 

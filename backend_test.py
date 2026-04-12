@@ -4,9 +4,11 @@ import json
 from datetime import datetime, timedelta
 
 class WhitelistAPITester:
-    def __init__(self, base_url="https://patient-report-ai.preview.emergentagent.com"):
-        self.base_url = base_url
-        self.api_url = f"{base_url}/api"
+    def __init__(self, base_url="http://localhost:8000"):
+        self.base_url = base_url.rstrip("/")
+        self.api_url = (
+            self.base_url if self.base_url.endswith("/api") else f"{self.base_url}/api"
+        )
         self.tests_run = 0
         self.tests_passed = 0
         self.admin_password = "buriead"
