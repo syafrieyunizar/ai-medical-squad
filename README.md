@@ -4,7 +4,7 @@ Repo ini sudah dirapikan agar bisa dideploy ke Vercel dengan arsitektur:
 
 - `frontend/`: React + Vite
 - `backend/`: FastAPI sebagai Vercel service di route `/api`
-- `Supabase`: auth, penyimpanan riwayat SOAP, whitelist, bypass, password attempts, dan system prompts
+- `Supabase`: auth, penyimpanan riwayat SOAP, whitelist, bypass, password attempts, system prompts, dan preferensi template Oppa per-user
 
 ## Environment Variables
 
@@ -34,6 +34,7 @@ CORS_ORIGINS=*
 1. Buka Supabase SQL Editor.
 2. Jalankan isi file `supabase_migration.sql`.
 3. Pastikan Supabase Auth aktif karena tabel `soap_history` mereferensi `auth.users`.
+4. Untuk update terbaru, migration juga menambahkan tabel `user_preferences` agar template normal Oppa tersimpan per akun, bukan hanya per browser.
 
 ## Deploy ke Vercel
 

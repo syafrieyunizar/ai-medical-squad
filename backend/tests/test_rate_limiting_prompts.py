@@ -274,20 +274,21 @@ class TestPromptsCRUD:
     """Test prompts CRUD operations"""
     
     def test_get_all_prompts(self):
-        """GET /api/prompts returns all 4 prompts (anam, oppa, diag, palui)"""
+        """GET /api/prompts returns all 5 prompts (anam, oppa, diag, palui, smart)"""
         response = requests.get(f"{BASE_URL}/api/prompts")
         
         assert response.status_code == 200, f"Expected 200, got {response.status_code}"
         data = response.json()
         
-        # Verify all 4 agent prompts exist
+        # Verify all 5 agent prompts exist
         assert "anam" in data, "Missing anam prompt"
         assert "oppa" in data, "Missing oppa prompt"
         assert "diag" in data, "Missing diag prompt"
         assert "palui" in data, "Missing palui prompt"
+        assert "smart" in data, "Missing smart prompt"
         
         # Verify prompts are non-empty strings
-        for agent_id in ["anam", "oppa", "diag", "palui"]:
+        for agent_id in ["anam", "oppa", "diag", "palui", "smart"]:
             assert isinstance(data[agent_id], str), f"{agent_id} prompt should be string"
             assert len(data[agent_id]) > 0, f"{agent_id} prompt should not be empty"
     
@@ -472,7 +473,7 @@ def cleanup_test_prompts():
     """Reset prompts to default after tests"""
     yield
     # Reset all prompts to default
-    for agent_id in ["anam", "oppa", "diag", "palui"]:
+    for agent_id in ["anam", "oppa", "diag", "palui", "smart"]:
         requests.post(f"{BASE_URL}/api/prompts/reset/{agent_id}")
 
 

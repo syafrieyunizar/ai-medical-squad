@@ -307,7 +307,7 @@ function AccessDeniedPage({ onSignOut }) {
 // Prompt Editor Modal
 function PromptEditorModal({ open, onClose }) {
   const [prompts, setPrompts] = useState({
-    anam: '', oppa: '', diag: '', palui: ''
+    anam: '', oppa: '', diag: '', palui: '', smart: ''
   });
   const [activeTab, setActiveTab] = useState('anam');
   const [loading, setLoading] = useState(true);
@@ -318,7 +318,8 @@ function PromptEditorModal({ open, onClose }) {
     anam: { name: 'Anam', desc: 'Anamnesis (Subjective)', icon: FileText },
     oppa: { name: 'Oppa', desc: 'Pemeriksaan Fisik (Objective)', icon: Activity },
     diag: { name: 'Diag', desc: 'Assessment (Diagnosis)', icon: ClipboardList },
-    palui: { name: 'Palui', desc: 'Planning (Terapi)', icon: Pill }
+    palui: { name: 'Palui', desc: 'Planning (Terapi)', icon: Pill },
+    smart: { name: 'SMART', desc: 'Asisten Dokter Jaga IGD', icon: AlertTriangle }
   };
 
   const fetchPrompts = useCallback(async () => {
@@ -682,6 +683,7 @@ function ProfileModal({ open, onClose, user }) {
 
 // SMART Chat Window
 function SmartChatWindow({ open, onClose, apiKey, soapContext }) {
+  const prompts = usePrompts();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [images, setImages] = useState([]);
@@ -742,7 +744,7 @@ function SmartChatWindow({ open, onClose, apiKey, soapContext }) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
       const payload = {
         contents,
-        systemInstruction: { parts: [{ text: SMART_SYSTEM_PROMPT }] }
+        systemInstruction: { parts: [{ text: prompts?.smart || SMART_SYSTEM_PROMPT }] }
       };
 
       const response = await fetch(url, {
@@ -1840,14 +1842,67 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   useEffect(() => {
     if (!user?.id) return;
+
+    const loadStatusGeneralisTemplate = async () => {
+      const localTemplate = localStorage.getItem(userKey('statusGeneralisTemplate'));
+
+      try {
+        const { data, error } = await supabase
+          .from('user_preferences')
+          .select('status_generalis_template')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const remoteTemplate = data?.status_generalis_template;
+        if (remoteTemplate) {
+          setStatusGeneralisTemplate(remoteTemplate);
+          setManualStatusGeneralis(remoteTemplate);
+          localStorage.setItem(userKey('statusGeneralisTemplate'), remoteTemplate);
+          return;
+        }
+
+        if (localTemplate) {
+          await supabase.from('user_preferences').upsert({
+            user_id: user.id,
+            status_generalis_template: localTemplate,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      } catch (err) {
+        console.error('Error loading status generalis template:', err);
+      }
+    };
+
+    loadStatusGeneralisTemplate();
+  }, [user, userKey]);
+
+  useEffect(() => {
+    if (!user?.id) return;
     localStorage.setItem(userKey('autotexts'), JSON.stringify(autotexts));
     localStorage.setItem(userKey('greeting'), greetingTemplate);
     localStorage.setItem(userKey('wa'), whatsappNumber);
   }, [autotexts, greetingTemplate, whatsappNumber, user, userKey]);
 
-  const handleSaveStatusGeneralisTemplate = () => {
+  const handleSaveStatusGeneralisTemplate = async () => {
     setStatusGeneralisTemplate(manualStatusGeneralis);
     localStorage.setItem(userKey('statusGeneralisTemplate'), manualStatusGeneralis);
+
+    if (!user?.id) return;
+
+    try {
+      const { error } = await supabase.from('user_preferences').upsert({
+        user_id: user.id,
+        status_generalis_template: manualStatusGeneralis,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error saving status generalis template:', err);
+      alert('Template gagal disimpan ke akun. Template lokal tetap tersimpan di browser ini.');
+    }
   };
 
   // New Session Handler

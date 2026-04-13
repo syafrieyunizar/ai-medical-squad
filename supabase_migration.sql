@@ -67,3 +67,23 @@ create table if not exists system_prompts (
   prompt text not null,
   updated_at timestamptz not null default now()
 );
+
+create table if not exists user_preferences (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  status_generalis_template text null,
+  updated_at timestamptz not null default now()
+);
+
+alter table user_preferences enable row level security;
+
+drop policy if exists "Users can view own preferences" on user_preferences;
+create policy "Users can view own preferences" on user_preferences
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert own preferences" on user_preferences;
+create policy "Users can insert own preferences" on user_preferences
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own preferences" on user_preferences;
+create policy "Users can update own preferences" on user_preferences
+  for update using (auth.uid() = user_id);

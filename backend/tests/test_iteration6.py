@@ -47,7 +47,7 @@ class TestPrompts:
     """Test GET /api/prompts endpoint"""
     
     def test_get_prompts_returns_all_four(self):
-        """Test GET /api/prompts returns all 4 prompts (anam, oppa, diag, palui)"""
+        """Test GET /api/prompts returns all 5 prompts (anam, oppa, diag, palui, smart)"""
         response = requests.get(f"{BASE_URL}/api/prompts")
         assert response.status_code == 200
         data = response.json()
@@ -57,12 +57,14 @@ class TestPrompts:
         assert "oppa" in data, "Missing 'oppa' prompt"
         assert "diag" in data, "Missing 'diag' prompt"
         assert "palui" in data, "Missing 'palui' prompt"
+        assert "smart" in data, "Missing 'smart' prompt"
         
         # Verify prompts are non-empty strings
         assert isinstance(data["anam"], str) and len(data["anam"]) > 0
         assert isinstance(data["oppa"], str) and len(data["oppa"]) > 0
         assert isinstance(data["diag"], str) and len(data["diag"]) > 0
         assert isinstance(data["palui"], str) and len(data["palui"]) > 0
+        assert isinstance(data["smart"], str) and len(data["smart"]) > 0
 
 
 class TestWhitelistBypass:
