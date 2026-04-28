@@ -74,6 +74,9 @@ create table if not exists user_preferences (
   updated_at timestamptz not null default now()
 );
 
+alter table user_preferences add column if not exists onboarding_completed boolean not null default false;
+alter table user_preferences add column if not exists onboarding_completed_at timestamptz null;
+
 alter table user_preferences enable row level security;
 
 drop policy if exists "Users can view own preferences" on user_preferences;

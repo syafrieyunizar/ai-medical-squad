@@ -34,7 +34,7 @@ CORS_ORIGINS=*
 1. Buka Supabase SQL Editor.
 2. Jalankan isi file `supabase_migration.sql`.
 3. Pastikan Supabase Auth aktif karena tabel `soap_history` mereferensi `auth.users`.
-4. Untuk update terbaru, migration juga menambahkan tabel `user_preferences` agar template normal Oppa tersimpan per akun, bukan hanya per browser.
+4. Untuk update terbaru, migration juga menambahkan tabel `user_preferences` agar template normal Oppa dan status onboarding tersimpan per akun, bukan hanya per browser.
 
 ## Deploy ke Vercel
 

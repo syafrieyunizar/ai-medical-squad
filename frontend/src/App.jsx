@@ -13,6 +13,7 @@ import {
   Settings, 
   LogOut, 
   RefreshCw, 
+  BookOpen,
   ChevronRight, 
   ChevronLeft,
   Upload,
@@ -73,6 +74,126 @@ Akral Hangat
 +/+
 +/+
 Edema (-)`;
+
+const ONBOARDING_SAMPLE_ANAM = 'BAB cair hampir 1 bulan, 3x lebih setiap hari, nafsu makan kurang, kadang demam +';
+
+const ONBOARDING_BRIEF_STEPS = [
+  {
+    key: 'brief-new-session',
+    selector: '[data-testid="new-session-btn"]',
+    title: 'Sesi Baru',
+    description: 'Gunakan Sesi Baru untuk memulai pasien baru dan membersihkan data SOAP pasien yang sedang aktif.'
+  },
+  {
+    key: 'brief-soap-steps',
+    selector: '[data-testid="soap-steps-nav"]',
+    title: 'Langkah SOAP',
+    description: 'Aplikasi dipakai berurutan dari Anam, Oppa, Diag, Palui, lalu Final SOAP.'
+  },
+  {
+    key: 'brief-anam',
+    selector: '[data-testid="step-1-anamnesis"]',
+    title: 'Anamnesis',
+    description: 'Masukkan keluhan dan riwayat pasien di sini. AI membantu menyusun anamnesis dan memberi saran penggalian lanjutan.'
+  },
+  {
+    key: 'brief-oppa',
+    selector: '[data-testid="step-2-physical"]',
+    title: 'Oppa',
+    description: 'Bagian ini dipakai untuk pemeriksaan fisik, baik dengan mode AI maupun manual.'
+  },
+  {
+    key: 'brief-diag',
+    selector: '[data-testid="step-3-assessment"]',
+    title: 'Diag',
+    description: 'Upload pemeriksaan penunjang jika ada. Jika ingin menulis diagnosa sendiri, isi manual dan jangan tekan Olah Diagnosa. Jika ingin AI yang membuatkan, kosongkan dulu lalu tekan Olah Diagnosa.'
+  },
+  {
+    key: 'brief-palui',
+    selector: '[data-testid="step-4-planning"]',
+    title: 'Palui',
+    description: 'Bagian ini untuk planning atau tatalaksana. Anda bisa menulis manual atau memakai AI.'
+  },
+  {
+    key: 'brief-smart',
+    selector: '[data-testid="smart-fab"]',
+    title: 'SMART',
+    description: 'SMART punya 2 mode: jika SOAP sudah selesai, hasil SOAP bisa didiskusikan dengan SMART. Jika belum ada SOAP selesai, SMART tetap bisa dipakai untuk pertanyaan general.'
+  },
+  {
+    key: 'brief-history-settings',
+    selector: '[data-testid="history-btn"]',
+    title: 'Riwayat dan Pengaturan',
+    description: 'Riwayat dipakai untuk melihat SOAP sebelumnya. Pengaturan dipakai untuk API key, greeting, dan autotext.'
+  }
+];
+
+const ONBOARDING_DETAIL_STEPS = [
+  {
+    key: 'detail-anam-step',
+    selector: '[data-testid="wizard-step-1"]',
+    title: 'Mulai dari Anam',
+    description: 'Kita mulai dari Anamnesis. Klik langkah Anamnesis untuk membuka bagian ini.',
+    completionLabel: 'Buka langkah Anamnesis untuk melanjutkan.'
+  },
+  {
+    key: 'detail-anam-input',
+    selector: '[data-testid="anam-input"]',
+    title: 'Contoh Input Anam',
+    description: 'Kolom ini akan diisi contoh keluhan pasien. Anda boleh mengeditnya nanti, tetapi untuk panduan ini kita gunakan contoh tersebut.',
+    completionLabel: 'Pastikan kolom anamnesis sudah terisi.'
+  },
+  {
+    key: 'detail-anam-process',
+    selector: '[data-testid="process-anam-btn"]',
+    title: 'Olah Anamnesis',
+    description: 'Sekarang klik Olah Anamnesis agar AI menyusun narasi dan saran penggalian.',
+    completionLabel: 'Klik Olah Anamnesis hingga hasil muncul.'
+  },
+  {
+    key: 'detail-anam-followup',
+    selector: '[data-testid="anam-input"]',
+    title: 'Jawab Minimal 1 Kali',
+    description: 'Setelah hasil muncul, jawab minimal 1 pertanyaan lanjutan dari saran yang diberikan AI. Setelah 1 follow-up berhasil, Anda boleh lanjut atau eksplor lagi sampai puas.',
+    completionLabel: 'Jawab minimal 1 follow-up anamnesis untuk melanjutkan.'
+  },
+  {
+    key: 'detail-oppa',
+    selector: '[data-testid="step-2-physical"]',
+    title: 'Oppa',
+    description: 'Bagian ini dipakai untuk pemeriksaan fisik. Anda bisa memakai mode AI atau manual, dan template normal dapat disimpan per akun.'
+  },
+  {
+    key: 'detail-diag',
+    selector: '[data-testid="step-3-assessment"]',
+    title: 'Diag',
+    description: 'Upload pemeriksaan penunjang jika ada. Jika ingin mengisi diagnosa sendiri, jangan tekan Olah Diagnosa. Jika ingin AI yang buatkan, kosongi dulu lalu tekan Olah Diagnosa.'
+  },
+  {
+    key: 'detail-palui',
+    selector: '[data-testid="step-4-planning"]',
+    title: 'Palui',
+    description: 'Bagian ini dipakai untuk planning dan terapi. Autotext di Pengaturan dapat membantu mempercepat penulisan.'
+  },
+  {
+    key: 'detail-smart',
+    selector: '[data-testid="smart-fab"]',
+    title: 'SMART',
+    description: 'SMART punya 2 fungsi. Jika SOAP sudah selesai ditulis, hasil SOAP tadi bisa didiskusikan dengan SMART. Jika belum ada SOAP selesai, SMART bekerja sebagai mode pertanyaan general.'
+  },
+  {
+    key: 'detail-history',
+    selector: '[data-testid="history-btn"]',
+    title: 'Riwayat',
+    description: 'Riwayat dipakai untuk melihat SOAP pasien sebelumnya.'
+  },
+  {
+    key: 'detail-settings',
+    selector: '[data-testid="settings-btn"]',
+    title: 'Pengaturan',
+    description: 'Pengaturan dipakai untuk API key, greeting, dan autotext.'
+  }
+];
 
 // SMART System Prompt
 const SMART_SYSTEM_PROMPT = `# SMART — Asisten Dokter Jaga IGD
@@ -207,6 +328,164 @@ Jika tidak yakin referensi valid: nyatakan: "perlu verifikasi mandiri."
 
 const PromptsContext = createContext(null);
 export const usePrompts = () => useContext(PromptsContext);
+
+function OnboardingTour({
+  open,
+  mode,
+  stepIndex,
+  onSelectMode,
+  onSkip,
+  onNext,
+  onPrev,
+  canProceed,
+  completionLabel
+}) {
+  const [targetRect, setTargetRect] = useState(null);
+
+  const steps = mode === 'brief' ? ONBOARDING_BRIEF_STEPS : mode === 'detail' ? ONBOARDING_DETAIL_STEPS : [];
+  const currentStep = steps[stepIndex] || null;
+
+  useEffect(() => {
+    if (!open || !currentStep?.selector) {
+      setTargetRect(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const target = document.querySelector(currentStep.selector);
+      if (!target) {
+        setTargetRect(null);
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      setTargetRect({
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open, currentStep]);
+
+  if (!open) return null;
+
+  if (!mode) {
+    return (
+      <div className="fixed inset-0 z-[80] bg-black/45 flex items-center justify-center p-4">
+        <div className="pointer-events-auto w-full max-w-md rounded-2xl bg-white border border-[#E3E0D8] shadow-2xl p-6 relative">
+          <button
+            onClick={onSkip}
+            className="absolute -top-12 right-0 rounded-full bg-white/95 border border-[#E3E0D8] px-4 py-2 text-sm font-medium text-[#5C6B64] hover:text-[#1A2E26]"
+          >
+            Skip
+          </button>
+          <div className="space-y-3">
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#F8F7F3] px-3 py-1 text-xs font-bold tracking-[0.16em] uppercase text-[#5C6B64]">
+              <BookOpen className="w-3 h-3" />
+              Get Started
+            </span>
+            <h3 className="font-heading text-2xl font-medium text-[#1A2E26]">Selamat datang di AI Medical Squad.</h3>
+            <p className="text-sm leading-relaxed text-[#5C6B64]">
+              Aplikasi ini membantu Anda menyusun SOAP secara bertahap.
+            </p>
+          </div>
+          <div className="mt-6 grid gap-3">
+            <Button onClick={() => onSelectMode('brief')} className="h-12 bg-[#2C4A3B] hover:bg-[#1A2E26] text-white">
+              Panduan Ringkas
+            </Button>
+            <Button onClick={() => onSelectMode('detail')} variant="outline" className="h-12 border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3]">
+              Panduan Detail
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const progressTotal = steps.length;
+  const isLastStep = stepIndex >= progressTotal - 1;
+
+  let bubbleStyle = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+  if (targetRect) {
+    const bubbleWidth = Math.min(window.innerWidth - 32, 380);
+    let left = targetRect.left + (targetRect.width / 2) - (bubbleWidth / 2);
+    left = Math.max(16, Math.min(left, window.innerWidth - bubbleWidth - 16));
+
+    let top = targetRect.top + targetRect.height + 18;
+    const estimatedHeight = 240;
+    if (top + estimatedHeight > window.innerHeight - 16) {
+      top = Math.max(16, targetRect.top - estimatedHeight - 18);
+    }
+    bubbleStyle = { top: `${top}px`, left: `${left}px`, width: `${bubbleWidth}px` };
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] pointer-events-none">
+      <div className="absolute inset-0 bg-black/35" />
+      {targetRect && (
+        <div
+          className="absolute rounded-2xl border-2 border-[#C56F5D] shadow-[0_0_0_9999px_rgba(0,0,0,0.22)] transition-all duration-200"
+          style={{
+            top: `${Math.max(targetRect.top - 8, 8)}px`,
+            left: `${Math.max(targetRect.left - 8, 8)}px`,
+            width: `${targetRect.width + 16}px`,
+            height: `${targetRect.height + 16}px`,
+          }}
+        />
+      )}
+      <div className="absolute" style={bubbleStyle}>
+        <div className="pointer-events-auto relative rounded-2xl bg-white border border-[#E3E0D8] shadow-2xl p-5">
+          <button
+            onClick={onSkip}
+            className="absolute -top-12 right-0 rounded-full bg-white/95 border border-[#E3E0D8] px-4 py-2 text-sm font-medium text-[#5C6B64] hover:text-[#1A2E26]"
+          >
+            Skip
+          </button>
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <span className="text-xs font-bold tracking-[0.16em] uppercase text-[#5C6B64]">
+              {mode === 'detail' ? 'Panduan Detail' : 'Panduan Ringkas'}
+            </span>
+            <span className="text-xs text-[#5C6B64]">{stepIndex + 1}/{progressTotal}</span>
+          </div>
+          <h3 className="font-heading text-xl font-medium text-[#1A2E26]">{currentStep?.title}</h3>
+          <p className="mt-2 text-sm leading-relaxed text-[#5C6B64]">{currentStep?.description}</p>
+          {!canProceed && completionLabel && (
+            <p className="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              {completionLabel}
+            </p>
+          )}
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <Button
+              onClick={onPrev}
+              variant="outline"
+              className={`border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3] ${stepIndex === 0 ? 'opacity-0 pointer-events-none' : ''}`}
+            >
+              <ChevronLeft className="w-4 h-4 mr-2" />
+              Kembali
+            </Button>
+            <Button
+              onClick={onNext}
+              disabled={!canProceed}
+              className="bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"
+            >
+              {isLastStep ? 'Selesai' : 'Next'}
+              {!isLastStep && <ChevronRight className="w-4 h-4 ml-2" />}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Generate client ID for tracking password attempts
 const getClientId = () => {
@@ -1767,6 +2046,10 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   const [showHistory, setShowHistory] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showSmart, setShowSmart] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingMode, setOnboardingMode] = useState(null);
+  const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
+  const [detailAnamConfirmed, setDetailAnamConfirmed] = useState(false);
   
   // Patient Identity
   const [patientIdentity, setPatientIdentity] = useState('');
@@ -1778,6 +2061,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   const [anamAlert, setAnamAlert] = useState('');
   const [isAnamLoading, setIsAnamLoading] = useState(false);
   const [isAnamFollowUp, setIsAnamFollowUp] = useState(false);
+  const [anamFollowUpCount, setAnamFollowUpCount] = useState(0);
 
   // Oppa State
   const [oppaMode, setOppaMode] = useState('AI');
@@ -1849,11 +2133,19 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
       try {
         const { data, error } = await supabase
           .from('user_preferences')
-          .select('status_generalis_template')
+          .select('status_generalis_template, onboarding_completed')
           .eq('user_id', user.id)
           .maybeSingle();
 
         if (error) throw error;
+
+        const onboardingDone = data?.onboarding_completed === true;
+        if (!onboardingDone) {
+          setShowOnboarding(true);
+          setOnboardingMode(null);
+          setOnboardingStepIndex(0);
+          setDetailAnamConfirmed(false);
+        }
 
         const remoteTemplate = data?.status_generalis_template;
         if (remoteTemplate) {
@@ -1905,6 +2197,98 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
     }
   };
 
+  const openOnboarding = () => {
+    setShowOnboarding(true);
+    setOnboardingMode(null);
+    setOnboardingStepIndex(0);
+    setDetailAnamConfirmed(false);
+  };
+
+  const closeOnboarding = () => {
+    setShowOnboarding(false);
+    setOnboardingMode(null);
+    setOnboardingStepIndex(0);
+  };
+
+  const completeOnboarding = async () => {
+    closeOnboarding();
+
+    if (!user?.id) return;
+
+    try {
+      const { error } = await supabase.from('user_preferences').upsert({
+        user_id: user.id,
+        status_generalis_template: statusGeneralisTemplate || null,
+        onboarding_completed: true,
+        onboarding_completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error saving onboarding completion:', err);
+    }
+  };
+
+  const activeOnboardingSteps = onboardingMode === 'brief'
+    ? ONBOARDING_BRIEF_STEPS
+    : onboardingMode === 'detail'
+    ? ONBOARDING_DETAIL_STEPS
+    : [];
+
+  const activeOnboardingStep = activeOnboardingSteps[onboardingStepIndex] || null;
+
+  const onboardingCanProceed = !showOnboarding || !activeOnboardingStep || (() => {
+    if (onboardingMode !== 'detail') return true;
+
+    switch (activeOnboardingStep.key) {
+      case 'detail-anam-step':
+        return detailAnamConfirmed;
+      case 'detail-anam-input':
+        return anamInput.trim().length > 0;
+      case 'detail-anam-process':
+        return anamNarrative.trim().length > 0;
+      case 'detail-anam-followup':
+        return anamFollowUpCount >= 1;
+      default:
+        return true;
+    }
+  })();
+
+  useEffect(() => {
+    if (!showOnboarding || onboardingMode !== 'detail') return;
+
+    if (activeOnboardingStep?.key === 'detail-anam-input' && !anamInput.trim()) {
+      setCurrentStep(1);
+      setAnamInput(ONBOARDING_SAMPLE_ANAM);
+    }
+  }, [showOnboarding, onboardingMode, activeOnboardingStep, anamInput]);
+
+  useEffect(() => {
+    if (!showOnboarding || !onboardingMode) return;
+
+    if (['brief-oppa', 'detail-oppa'].includes(activeOnboardingStep?.key)) {
+      setCurrentStep(2);
+      return;
+    }
+
+    if (['brief-diag', 'detail-diag'].includes(activeOnboardingStep?.key)) {
+      setCurrentStep(3);
+      return;
+    }
+
+    if (['brief-palui', 'detail-palui'].includes(activeOnboardingStep?.key)) {
+      setCurrentStep(4);
+      return;
+    }
+
+    if (activeOnboardingStep?.key === 'brief-anam') {
+      setCurrentStep(1);
+      return;
+    }
+
+  }, [showOnboarding, onboardingMode, activeOnboardingStep]);
+
   // New Session Handler
   const handleNewSession = async () => {
     const isAllowed = await checkWhitelist();
@@ -1918,6 +2302,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
       setAnamSaran('');
       setAnamAlert('');
       setIsAnamFollowUp(false);
+      setAnamFollowUpCount(0);
       setOppaMode('AI');
       setVitals({ kes: 'CM', gcs: 'E4V5M6', td: '120/80', n: '80', rr: '20', t: '36.5', spo2: '98% RA' });
       setAbnormalFinding('');
@@ -1945,6 +2330,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
     if (!anamInput.trim()) return;
     setIsAnamLoading(true);
     setAnamAlert('');
+    const wasFollowUp = isAnamFollowUp;
     
     let warnings = [];
     const lowerInput = anamInput.toLowerCase();
@@ -1980,6 +2366,9 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
       setAnamInput('');
       setIsAnamFollowUp(true);
+      if (wasFollowUp) {
+        setAnamFollowUpCount(prev => prev + 1);
+      }
 
     } catch (err) {
       setAnamNarrative("Gagal menghubungi AI Anam.\nError: " + err.message);
@@ -2248,6 +2637,9 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   const handleStepChange = async (step) => {
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
+    if (showOnboarding && onboardingMode === 'detail' && activeOnboardingStep?.key === 'detail-anam-step' && step === 1) {
+      setDetailAnamConfirmed(true);
+    }
     setCurrentStep(step);
   };
 
@@ -2288,6 +2680,17 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
               >
                 <RefreshCw className="w-4 h-4" />
                 <span className="hidden sm:inline">Sesi Baru</span>
+              </Button>
+
+              <Button
+                data-testid="onboarding-btn"
+                variant="outline"
+                size="sm"
+                onClick={openOnboarding}
+                className="border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3] gap-2"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span className="hidden sm:inline">Cara Pakai AI Medical Squad</span>
               </Button>
 
               <Button
@@ -2446,7 +2849,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Sidebar - Wizard Steps */}
           <aside className="lg:w-64 flex-shrink-0">
-            <nav className="sticky top-24 bg-white rounded-2xl border border-[#E3E0D8] overflow-hidden">
+            <nav data-testid="soap-steps-nav" className="sticky top-24 bg-white rounded-2xl border border-[#E3E0D8] overflow-hidden">
               <div className="p-4 border-b border-[#E3E0D8]">
                 <h2 className="text-xs font-bold tracking-[0.2em] uppercase text-[#5C6B64]">Langkah SOAP</h2>
               </div>
@@ -2656,6 +3059,28 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
       <HistoryModal open={showHistory} onClose={() => setShowHistory(false)} user={user} />
       <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} user={user} />
       <SmartChatWindow open={showSmart} onClose={() => setShowSmart(false)} apiKey={apiKey} soapContext={finalSoap} />
+      <OnboardingTour
+        open={showOnboarding}
+        mode={onboardingMode}
+        stepIndex={onboardingStepIndex}
+        onSelectMode={(mode) => {
+          setOnboardingMode(mode);
+          setOnboardingStepIndex(0);
+          setDetailAnamConfirmed(false);
+        }}
+        onSkip={closeOnboarding}
+        onPrev={() => setOnboardingStepIndex((prev) => Math.max(0, prev - 1))}
+        onNext={() => {
+          if (!activeOnboardingSteps.length) return;
+          if (onboardingStepIndex >= activeOnboardingSteps.length - 1) {
+            completeOnboarding();
+            return;
+          }
+          setOnboardingStepIndex((prev) => prev + 1);
+        }}
+        canProceed={onboardingCanProceed}
+        completionLabel={activeOnboardingStep?.completionLabel}
+      />
 
       {/* SMART Floating Action Button */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center group" data-testid="smart-fab">
