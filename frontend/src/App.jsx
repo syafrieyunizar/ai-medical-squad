@@ -76,6 +76,7 @@ Akral Hangat
 Edema (-)`;
 
 const ONBOARDING_SAMPLE_ANAM = 'BAB cair hampir 1 bulan, 3x lebih setiap hari, nafsu makan kurang, kadang demam +';
+const ONBOARDING_SAMPLE_ANAM_FOLLOWUP = 'RPD : Tidak ada, RPK : Ibu hipertiroid, alergi udang. Sering berkeringat (+)';
 
 const ONBOARDING_BRIEF_STEPS = [
   {
@@ -154,7 +155,7 @@ const ONBOARDING_DETAIL_STEPS = [
     key: 'detail-anam-followup',
     selector: '[data-testid="anam-input"]',
     title: 'Jawab Minimal 1 Kali',
-    description: 'Setelah hasil muncul, jawab minimal 1 pertanyaan lanjutan dari saran yang diberikan AI. Setelah 1 follow-up berhasil, Anda boleh lanjut atau eksplor lagi sampai puas.',
+    description: 'Klik Lanjutkan Analisa. Setelah 1 follow-up pertanyaan berhasil, Anda boleh lanjut atau lanjutkan menjawab pertanyaan sampai anamnesis menurut anda sudah lengkap.',
     completionLabel: 'Jawab minimal 1 follow-up anamnesis untuk melanjutkan.'
   },
   {
@@ -179,7 +180,7 @@ const ONBOARDING_DETAIL_STEPS = [
     key: 'detail-smart',
     selector: '[data-testid="smart-fab"]',
     title: 'SMART',
-    description: 'SMART punya 2 fungsi. Jika SOAP sudah selesai ditulis, hasil SOAP tadi bisa didiskusikan dengan SMART. Jika belum ada SOAP selesai, SMART bekerja sebagai mode pertanyaan general.'
+    description: 'SMART punya 2 fungsi.\n- Jika SOAP sudah selesai ditulis, hasil SOAP tadi bisa didiskusikan dengan SMART.\n- Jika belum ada SOAP selesai, SMART bekerja sebagai mode pertanyaan general.'
   },
   {
     key: 'detail-history',
@@ -416,24 +417,36 @@ function OnboardingTour({
 
   let bubbleStyle = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
   if (targetRect) {
-    const bubbleWidth = Math.min(window.innerWidth - 32, 380);
-    let left = targetRect.left + (targetRect.width / 2) - (bubbleWidth / 2);
+    const bubbleWidth = Math.min(window.innerWidth - 32, 320);
+    let left = targetRect.left + targetRect.width + 18;
+    if (left + bubbleWidth > window.innerWidth - 16) {
+      left = targetRect.left + (targetRect.width / 2) - (bubbleWidth / 2);
+    }
     left = Math.max(16, Math.min(left, window.innerWidth - bubbleWidth - 16));
 
-    let top = targetRect.top + targetRect.height + 18;
-    const estimatedHeight = 240;
+    let top = targetRect.top;
+    const estimatedHeight = 220;
     if (top + estimatedHeight > window.innerHeight - 16) {
-      top = Math.max(16, targetRect.top - estimatedHeight - 18);
+      top = Math.max(16, window.innerHeight - estimatedHeight - 16);
     }
     bubbleStyle = { top: `${top}px`, left: `${left}px`, width: `${bubbleWidth}px` };
   }
 
   return (
     <div className="fixed inset-0 z-[80] pointer-events-none">
-      <div className="absolute inset-0 bg-black/35" />
+      {targetRect ? (
+        <>
+          <div className="absolute left-0 right-0 top-0 bg-black/28" style={{ height: `${Math.max(targetRect.top - 10, 0)}px` }} />
+          <div className="absolute left-0 bg-black/28" style={{ top: `${Math.max(targetRect.top - 10, 0)}px`, width: `${Math.max(targetRect.left - 10, 0)}px`, height: `${targetRect.height + 20}px` }} />
+          <div className="absolute right-0 bg-black/28" style={{ top: `${Math.max(targetRect.top - 10, 0)}px`, left: `${targetRect.left + targetRect.width + 10}px`, height: `${targetRect.height + 20}px` }} />
+          <div className="absolute left-0 right-0 bottom-0 bg-black/28" style={{ top: `${targetRect.top + targetRect.height + 10}px` }} />
+        </>
+      ) : (
+        <div className="absolute inset-0 bg-black/28" />
+      )}
       {targetRect && (
         <div
-          className="absolute rounded-2xl border-2 border-[#C56F5D] shadow-[0_0_0_9999px_rgba(0,0,0,0.22)] transition-all duration-200"
+          className="absolute rounded-2xl border-2 border-[#C56F5D] bg-white/5 transition-all duration-200"
           style={{
             top: `${Math.max(targetRect.top - 8, 8)}px`,
             left: `${Math.max(targetRect.left - 8, 8)}px`,
@@ -443,31 +456,31 @@ function OnboardingTour({
         />
       )}
       <div className="absolute" style={bubbleStyle}>
-        <div className="pointer-events-auto relative rounded-2xl bg-white border border-[#E3E0D8] shadow-2xl p-5">
+        <div className="pointer-events-auto relative rounded-2xl bg-white border border-[#E3E0D8] shadow-2xl p-4">
           <button
             onClick={onSkip}
-            className="absolute -top-12 right-0 rounded-full bg-white/95 border border-[#E3E0D8] px-4 py-2 text-sm font-medium text-[#5C6B64] hover:text-[#1A2E26]"
+            className="absolute -top-10 right-0 rounded-full bg-white/95 border border-[#E3E0D8] px-3 py-1.5 text-sm font-medium text-[#5C6B64] hover:text-[#1A2E26]"
           >
             Skip
           </button>
-          <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex items-center justify-between gap-4 mb-2">
             <span className="text-xs font-bold tracking-[0.16em] uppercase text-[#5C6B64]">
               {mode === 'detail' ? 'Panduan Detail' : 'Panduan Ringkas'}
             </span>
             <span className="text-xs text-[#5C6B64]">{stepIndex + 1}/{progressTotal}</span>
           </div>
-          <h3 className="font-heading text-xl font-medium text-[#1A2E26]">{currentStep?.title}</h3>
-          <p className="mt-2 text-sm leading-relaxed text-[#5C6B64]">{currentStep?.description}</p>
+          <h3 className="font-heading text-lg font-medium text-[#1A2E26]">{currentStep?.title}</h3>
+          <p className="mt-2 text-sm leading-relaxed text-[#5C6B64] whitespace-pre-line">{currentStep?.description}</p>
           {!canProceed && completionLabel && (
             <p className="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
               {completionLabel}
             </p>
           )}
-          <div className="mt-5 flex items-center justify-between gap-3">
+          <div className="mt-4 flex items-center justify-between gap-3">
             <Button
               onClick={onPrev}
               variant="outline"
-              className={`border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3] ${stepIndex === 0 ? 'opacity-0 pointer-events-none' : ''}`}
+              className={`h-10 border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3] ${stepIndex === 0 ? 'opacity-0 pointer-events-none' : ''}`}
             >
               <ChevronLeft className="w-4 h-4 mr-2" />
               Kembali
@@ -475,7 +488,7 @@ function OnboardingTour({
             <Button
               onClick={onNext}
               disabled={!canProceed}
-              className="bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"
+              className="h-10 bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"
             >
               {isLastStep ? 'Selesai' : 'Next'}
               {!isLastStep && <ChevronRight className="w-4 h-4 ml-2" />}
@@ -2261,6 +2274,15 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
     if (activeOnboardingStep?.key === 'detail-anam-input' && !anamInput.trim()) {
       setCurrentStep(1);
       setAnamInput(ONBOARDING_SAMPLE_ANAM);
+    }
+  }, [showOnboarding, onboardingMode, activeOnboardingStep, anamInput]);
+
+  useEffect(() => {
+    if (!showOnboarding || onboardingMode !== 'detail') return;
+
+    if (activeOnboardingStep?.key === 'detail-anam-followup' && !anamInput.trim()) {
+      setCurrentStep(1);
+      setAnamInput(ONBOARDING_SAMPLE_ANAM_FOLLOWUP);
     }
   }, [showOnboarding, onboardingMode, activeOnboardingStep, anamInput]);
 
