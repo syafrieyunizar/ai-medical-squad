@@ -1991,11 +1991,80 @@ function ApiKeySetup({ user, onComplete, onSignOut }) {
   );
 }
 
+function AuthRequiredModal({ open, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const redirectUrl = window.location.origin;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectUrl }
+      });
+      if (error) throw error;
+    } catch (err) {
+      setError(err.message || 'Gagal login dengan Google');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent className="max-w-md bg-white">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-xl text-[#1A2E26]">Masuk untuk melanjutkan</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <p className="text-sm leading-relaxed text-[#5C6B64]">
+            Anda boleh menjelajahi AI Medical Squad tanpa login, tetapi untuk memakai fitur proses AI, riwayat, SMART, dan pengaturan, Anda perlu masuk terlebih dahulu.
+          </p>
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <Button
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full h-12 bg-white hover:bg-gray-50 text-[#1A2E26] border border-[#E3E0D8] font-medium text-base gap-3"
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+            )}
+            Masuk dengan Google
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="w-full border-[#E3E0D8] text-[#5C6B64] hover:bg-[#F8F7F3]"
+          >
+            Nanti Saja
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Main App Component - Import from separate file for cleaner code
 // ... (keeping the MainApp component the same as before but with prompt loading from API)
 
 // Export a simplified version that loads prompts from API
-function MainAppWrapper({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
+function MainAppWrapper({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist, onRequestLogin }) {
   const [prompts, setPrompts] = useState(null);
   const [promptsLoading, setPromptsLoading] = useState(true);
 
@@ -2035,13 +2104,14 @@ function MainAppWrapper({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist
         onLogout={onLogout}
         onChangeApiKey={onChangeApiKey}
         checkWhitelist={checkWhitelist}
+        onRequestLogin={onRequestLogin}
       />
     </PromptsContext.Provider>
   );
 }
 
 // Main App Component (keeping the same logic but using prompts from context)
-function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
+function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist, onRequestLogin }) {
   const prompts = usePrompts();
   const [currentStep, setCurrentStep] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
@@ -2109,6 +2179,15 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   // Per-user localStorage keys
   const userKey = useCallback((key) => `aiSquad_${user?.id || 'default'}_${key}`, [user]);
+  const isGuest = !user;
+
+  const requireLogin = useCallback(() => {
+    if (!user) {
+      onRequestLogin?.();
+      return false;
+    }
+    return true;
+  }, [user, onRequestLogin]);
 
   // Load/Save localStorage (per-user)
   useEffect(() => {
@@ -2302,6 +2381,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   // New Session Handler
   const handleNewSession = async () => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2335,6 +2415,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   // ANAM Handler - using prompts from context
   const handleAnamProcess = async () => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2390,6 +2471,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   // OPPA Handlers
   const handleOppaImageUpload = async (e) => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2405,6 +2487,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   };
 
   const handleOppaProcessAI = async () => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2443,6 +2526,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   // DIAG Handlers
   const handleDiagImageUpload = async (e) => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2458,6 +2542,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   };
 
   const handleDiagProcess = async () => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2496,6 +2581,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   // PALUI Handler
   const handlePaluiProcess = async () => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2522,6 +2608,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   // EZZY Handler
   const handleEzzyGenerate = async () => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2593,6 +2680,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   // Copy & WA Handlers
   const handleCopyClipboard = async () => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2625,6 +2713,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
   };
 
   const handleSendWA = async () => {
+    if (!requireLogin()) return;
     const isAllowed = await checkWhitelist();
     if (!isAllowed) return;
     
@@ -2646,8 +2735,6 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
   // Navigation with whitelist check
   const handleStepChange = async (step) => {
-    const isAllowed = await checkWhitelist();
-    if (!isAllowed) return;
     if (showOnboarding && onboardingMode === 'detail' && activeOnboardingStep?.key === 'detail-anam-step' && step === 1) {
       setDetailAnamConfirmed(true);
     }
@@ -2708,7 +2795,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
                 data-testid="history-btn"
                 variant="outline"
                 size="icon"
-                onClick={() => setShowHistory(true)}
+                onClick={() => (requireLogin() ? setShowHistory(true) : null)}
                 className="border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3]"
               >
                 <History className="w-4 h-4" />
@@ -2720,6 +2807,11 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
                     data-testid="settings-btn"
                     variant="outline"
                     size="icon"
+                    onClick={(e) => {
+                      if (!requireLogin()) {
+                        e.preventDefault();
+                      }
+                    }}
                     className="border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3]"
                   >
                     <Settings className="w-4 h-4" />
@@ -2827,28 +2919,40 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
 
               {/* User Menu */}
               <div className="flex items-center gap-2 pl-2 border-l border-[#E3E0D8]">
-                <button
-                  data-testid="profile-btn"
-                  onClick={() => setShowProfile(true)}
-                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-[#2C4A3B] transition flex-shrink-0"
-                >
-                  {(user?.user_metadata?.avatar_url || user?.user_metadata?.picture) ? (
-                    <img src={user.user_metadata.avatar_url || user.user_metadata.picture} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full bg-[#2C4A3B] text-white flex items-center justify-center text-sm font-medium">
-                      {user?.email?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                  )}
-                </button>
-                <Button
-                  data-testid="logout-btn"
-                  variant="ghost"
-                  size="icon"
-                  onClick={onLogout}
-                  className="text-[#5C6B64] hover:text-[#1A2E26] hover:bg-[#F8F7F3]"
-                >
-                  <LogOut className="w-4 h-4" />
-                </Button>
+                {isGuest ? (
+                  <Button
+                    data-testid="login-cta-btn"
+                    onClick={onRequestLogin}
+                    className="bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"
+                  >
+                    Masuk
+                  </Button>
+                ) : (
+                  <>
+                    <button
+                      data-testid="profile-btn"
+                      onClick={() => setShowProfile(true)}
+                      className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-[#2C4A3B] transition flex-shrink-0"
+                    >
+                      {(user?.user_metadata?.avatar_url || user?.user_metadata?.picture) ? (
+                        <img src={user.user_metadata.avatar_url || user.user_metadata.picture} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full bg-[#2C4A3B] text-white flex items-center justify-center text-sm font-medium">
+                          {user?.email?.charAt(0).toUpperCase() || 'U'}
+                        </div>
+                      )}
+                    </button>
+                    <Button
+                      data-testid="logout-btn"
+                      variant="ghost"
+                      size="icon"
+                      onClick={onLogout}
+                      className="text-[#5C6B64] hover:text-[#1A2E26] hover:bg-[#F8F7F3]"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -3097,7 +3201,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist }) {
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center group" data-testid="smart-fab">
         <div
           data-testid="smart-warning-btn"
-          onClick={() => setShowSmart(true)}
+          onClick={() => (requireLogin() ? setShowSmart(true) : null)}
           className="w-16 h-16 rounded-full bg-amber-400 hover:bg-amber-300 active:bg-amber-500 shadow-lg shadow-amber-400/30 flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 active:scale-95 animate-pulse hover:animate-none"
         >
           <AlertTriangle className="w-8 h-8 text-[#1A2E26]" />
@@ -3116,6 +3220,7 @@ export default function App() {
   const [apiKey, setApiKey] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [showAuthRequired, setShowAuthRequired] = useState(false);
 
   const checkWhitelist = useCallback(async () => {
     if (!user?.email) return true;
@@ -3222,8 +3327,22 @@ export default function App() {
   }
 
   if (accessDenied && user) return <AccessDeniedPage onSignOut={handleLogout} />;
-  if (!user) return <LoginPage onLogin={setUser} onSignOut={handleLogout} />;
-  if (!apiKey) return <ApiKeySetup user={user} onComplete={handleApiKeyComplete} onSignOut={handleLogout} />;
+  if (user && !apiKey) return <ApiKeySetup user={user} onComplete={handleApiKeyComplete} onSignOut={handleLogout} />;
 
-  return <MainAppWrapper user={user} apiKey={apiKey} onLogout={handleLogout} onChangeApiKey={handleChangeApiKey} checkWhitelist={checkWhitelist} />;
+  return (
+    <>
+      <MainAppWrapper
+        user={user}
+        apiKey={apiKey}
+        onLogout={handleLogout}
+        onChangeApiKey={handleChangeApiKey}
+        checkWhitelist={checkWhitelist}
+        onRequestLogin={() => setShowAuthRequired(true)}
+      />
+      <AuthRequiredModal
+        open={showAuthRequired}
+        onClose={() => setShowAuthRequired(false)}
+      />
+    </>
+  );
 }
