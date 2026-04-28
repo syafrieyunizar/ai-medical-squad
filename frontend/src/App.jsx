@@ -342,6 +342,7 @@ function OnboardingTour({
   completionLabel
 }) {
   const [targetRect, setTargetRect] = useState(null);
+  const SAFE_GAP = 24;
 
   const steps = mode === 'brief' ? ONBOARDING_BRIEF_STEPS : mode === 'detail' ? ONBOARDING_DETAIL_STEPS : [];
   const currentStep = steps[stepIndex] || null;
@@ -417,19 +418,57 @@ function OnboardingTour({
 
   let bubbleStyle = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
   if (targetRect) {
-    const bubbleWidth = Math.min(window.innerWidth - 32, 320);
-    let left = targetRect.left + targetRect.width + 18;
-    if (left + bubbleWidth > window.innerWidth - 16) {
-      left = targetRect.left + (targetRect.width / 2) - (bubbleWidth / 2);
-    }
-    left = Math.max(16, Math.min(left, window.innerWidth - bubbleWidth - 16));
+    const viewportPadding = 16;
+    const bubbleWidth = Math.min(window.innerWidth - (viewportPadding * 2), 192);
+    const estimatedHeight = 156;
+    const focusBox = {
+      top: Math.max(targetRect.top - 8, 8),
+      left: Math.max(targetRect.left - 8, 8),
+      right: Math.max(targetRect.left - 8, 8) + targetRect.width + 16,
+      bottom: Math.max(targetRect.top - 8, 8) + targetRect.height + 16,
+    };
 
-    let top = targetRect.top;
-    const estimatedHeight = 220;
-    if (top + estimatedHeight > window.innerHeight - 16) {
-      top = Math.max(16, window.innerHeight - estimatedHeight - 16);
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+    const candidates = [
+      {
+        top: clamp(targetRect.top, viewportPadding, window.innerHeight - estimatedHeight - viewportPadding),
+        left: targetRect.left + targetRect.width + SAFE_GAP,
+      },
+      {
+        top: clamp(targetRect.top, viewportPadding, window.innerHeight - estimatedHeight - viewportPadding),
+        left: targetRect.left - bubbleWidth - SAFE_GAP,
+      },
+      {
+        top: targetRect.top + targetRect.height + SAFE_GAP,
+        left: clamp(targetRect.left + (targetRect.width / 2) - (bubbleWidth / 2), viewportPadding, window.innerWidth - bubbleWidth - viewportPadding),
+      },
+      {
+        top: targetRect.top - estimatedHeight - SAFE_GAP,
+        left: clamp(targetRect.left + (targetRect.width / 2) - (bubbleWidth / 2), viewportPadding, window.innerWidth - bubbleWidth - viewportPadding),
+      },
+    ];
+
+    const fitsViewport = (box) =>
+      box.left >= viewportPadding &&
+      box.top >= viewportPadding &&
+      box.left + bubbleWidth <= window.innerWidth - viewportPadding &&
+      box.top + estimatedHeight <= window.innerHeight - viewportPadding;
+
+    const respectsSafeGap = (box) =>
+      box.left + bubbleWidth <= focusBox.left - SAFE_GAP ||
+      box.left >= focusBox.right + SAFE_GAP ||
+      box.top + estimatedHeight <= focusBox.top - SAFE_GAP ||
+      box.top >= focusBox.bottom + SAFE_GAP;
+
+    const chosen = candidates.find((candidate) => fitsViewport(candidate) && respectsSafeGap(candidate));
+
+    if (chosen) {
+      bubbleStyle = { top: `${chosen.top}px`, left: `${chosen.left}px`, width: `${bubbleWidth}px` };
+    } else {
+      const fallbackTop = clamp(window.innerHeight - estimatedHeight - viewportPadding, viewportPadding, window.innerHeight - estimatedHeight - viewportPadding);
+      const fallbackLeft = clamp(window.innerWidth - bubbleWidth - viewportPadding, viewportPadding, window.innerWidth - bubbleWidth - viewportPadding);
+      bubbleStyle = { top: `${fallbackTop}px`, left: `${fallbackLeft}px`, width: `${bubbleWidth}px` };
     }
-    bubbleStyle = { top: `${top}px`, left: `${left}px`, width: `${bubbleWidth}px` };
   }
 
   return (
@@ -456,42 +495,42 @@ function OnboardingTour({
         />
       )}
       <div className="absolute" style={bubbleStyle}>
-        <div className="pointer-events-auto relative rounded-2xl bg-white border border-[#E3E0D8] shadow-2xl p-4">
+        <div className="pointer-events-auto relative rounded-xl bg-white border border-[#E3E0D8] shadow-2xl p-3">
           <button
             onClick={onSkip}
-            className="absolute -top-10 right-0 rounded-full bg-white/95 border border-[#E3E0D8] px-3 py-1.5 text-sm font-medium text-[#5C6B64] hover:text-[#1A2E26]"
+            className="absolute -top-8 right-0 rounded-full bg-white/95 border border-[#E3E0D8] px-2.5 py-1 text-[11px] font-medium text-[#5C6B64] hover:text-[#1A2E26]"
           >
             Skip
           </button>
-          <div className="flex items-center justify-between gap-4 mb-2">
-            <span className="text-xs font-bold tracking-[0.16em] uppercase text-[#5C6B64]">
+          <div className="flex items-center justify-between gap-3 mb-1.5">
+            <span className="text-[10px] font-bold tracking-[0.16em] uppercase text-[#5C6B64]">
               {mode === 'detail' ? 'Panduan Detail' : 'Panduan Ringkas'}
             </span>
-            <span className="text-xs text-[#5C6B64]">{stepIndex + 1}/{progressTotal}</span>
+            <span className="text-[10px] text-[#5C6B64]">{stepIndex + 1}/{progressTotal}</span>
           </div>
-          <h3 className="font-heading text-lg font-medium text-[#1A2E26]">{currentStep?.title}</h3>
-          <p className="mt-2 text-sm leading-relaxed text-[#5C6B64] whitespace-pre-line">{currentStep?.description}</p>
+          <h3 className="font-heading text-sm font-medium leading-snug text-[#1A2E26]">{currentStep?.title}</h3>
+          <p className="mt-1.5 text-xs leading-relaxed text-[#5C6B64] whitespace-pre-line">{currentStep?.description}</p>
           {!canProceed && completionLabel && (
-            <p className="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+            <p className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-800">
               {completionLabel}
             </p>
           )}
-          <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="mt-3 flex items-center justify-between gap-2">
             <Button
               onClick={onPrev}
               variant="outline"
-              className={`h-10 border-[#E3E0D8] text-[#1A2E26] hover:bg-[#F8F7F3] ${stepIndex === 0 ? 'opacity-0 pointer-events-none' : ''}`}
+              className={`h-8 rounded-lg border-[#E3E0D8] px-2.5 text-xs text-[#1A2E26] hover:bg-[#F8F7F3] ${stepIndex === 0 ? 'opacity-0 pointer-events-none' : ''}`}
             >
-              <ChevronLeft className="w-4 h-4 mr-2" />
+              <ChevronLeft className="w-3 h-3 mr-1.5" />
               Kembali
             </Button>
             <Button
               onClick={onNext}
               disabled={!canProceed}
-              className="h-10 bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"
+              className="h-8 rounded-lg bg-[#2C4A3B] px-2.5 text-xs text-white hover:bg-[#1A2E26]"
             >
               {isLastStep ? 'Selesai' : 'Next'}
-              {!isLastStep && <ChevronRight className="w-4 h-4 ml-2" />}
+              {!isLastStep && <ChevronRight className="w-3 h-3 ml-1.5" />}
             </Button>
           </div>
         </div>
