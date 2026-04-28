@@ -342,7 +342,6 @@ function OnboardingTour({
   completionLabel
 }) {
   const [targetRect, setTargetRect] = useState(null);
-  const SAFE_GAP = 24;
 
   const steps = mode === 'brief' ? ONBOARDING_BRIEF_STEPS : mode === 'detail' ? ONBOARDING_DETAIL_STEPS : [];
   const currentStep = steps[stepIndex] || null;
@@ -416,60 +415,11 @@ function OnboardingTour({
   const progressTotal = steps.length;
   const isLastStep = stepIndex >= progressTotal - 1;
 
-  let bubbleStyle = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
-  if (targetRect) {
-    const viewportPadding = 16;
-    const bubbleWidth = Math.min(window.innerWidth - (viewportPadding * 2), 192);
-    const estimatedHeight = 156;
-    const focusBox = {
-      top: Math.max(targetRect.top - 8, 8),
-      left: Math.max(targetRect.left - 8, 8),
-      right: Math.max(targetRect.left - 8, 8) + targetRect.width + 16,
-      bottom: Math.max(targetRect.top - 8, 8) + targetRect.height + 16,
-    };
-
-    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-    const candidates = [
-      {
-        top: clamp(targetRect.top, viewportPadding, window.innerHeight - estimatedHeight - viewportPadding),
-        left: targetRect.left + targetRect.width + SAFE_GAP,
-      },
-      {
-        top: clamp(targetRect.top, viewportPadding, window.innerHeight - estimatedHeight - viewportPadding),
-        left: targetRect.left - bubbleWidth - SAFE_GAP,
-      },
-      {
-        top: targetRect.top + targetRect.height + SAFE_GAP,
-        left: clamp(targetRect.left + (targetRect.width / 2) - (bubbleWidth / 2), viewportPadding, window.innerWidth - bubbleWidth - viewportPadding),
-      },
-      {
-        top: targetRect.top - estimatedHeight - SAFE_GAP,
-        left: clamp(targetRect.left + (targetRect.width / 2) - (bubbleWidth / 2), viewportPadding, window.innerWidth - bubbleWidth - viewportPadding),
-      },
-    ];
-
-    const fitsViewport = (box) =>
-      box.left >= viewportPadding &&
-      box.top >= viewportPadding &&
-      box.left + bubbleWidth <= window.innerWidth - viewportPadding &&
-      box.top + estimatedHeight <= window.innerHeight - viewportPadding;
-
-    const respectsSafeGap = (box) =>
-      box.left + bubbleWidth <= focusBox.left - SAFE_GAP ||
-      box.left >= focusBox.right + SAFE_GAP ||
-      box.top + estimatedHeight <= focusBox.top - SAFE_GAP ||
-      box.top >= focusBox.bottom + SAFE_GAP;
-
-    const chosen = candidates.find((candidate) => fitsViewport(candidate) && respectsSafeGap(candidate));
-
-    if (chosen) {
-      bubbleStyle = { top: `${chosen.top}px`, left: `${chosen.left}px`, width: `${bubbleWidth}px` };
-    } else {
-      const fallbackTop = clamp(window.innerHeight - estimatedHeight - viewportPadding, viewportPadding, window.innerHeight - estimatedHeight - viewportPadding);
-      const fallbackLeft = clamp(window.innerWidth - bubbleWidth - viewportPadding, viewportPadding, window.innerWidth - bubbleWidth - viewportPadding);
-      bubbleStyle = { top: `${fallbackTop}px`, left: `${fallbackLeft}px`, width: `${bubbleWidth}px` };
-    }
-  }
+  const bubbleStyle = {
+    left: '24px',
+    bottom: '24px',
+    width: `${Math.min(window.innerWidth - 32, 192)}px`,
+  };
 
   return (
     <div className="fixed inset-0 z-[80] pointer-events-none">
