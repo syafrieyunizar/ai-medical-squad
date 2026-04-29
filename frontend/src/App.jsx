@@ -44,6 +44,16 @@ import {
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_BACKEND_URL || "/api";
+const SUPER_ADMIN_EMAIL = 'syafrie.yunz@gmail.com';
+
+const getAuthHeaders = async (extraHeaders = {}) => {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  return {
+    ...extraHeaders,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
 
 const DEFAULT_STATUS_GENERALIS = `Kepala/Leher :
 Konj. pucat (-) Sklera ikterik (-) 
@@ -631,9 +641,10 @@ function PromptEditorModal({ open, onClose }) {
   const handleSave = async (agentId) => {
     setSaving(true);
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch(`${API}/prompts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ agent_id: agentId, prompt: prompts[agentId] })
       });
       if (res.ok) {
@@ -653,7 +664,8 @@ function PromptEditorModal({ open, onClose }) {
     
     setSaving(true);
     try {
-      const res = await fetch(`${API}/prompts/reset/${agentId}`, { method: 'POST' });
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API}/prompts/reset/${agentId}`, { method: 'POST', headers });
       if (res.ok) {
         const data = await res.json();
         setPrompts(prev => ({ ...prev, [agentId]: data.prompt }));
@@ -860,7 +872,7 @@ function HistoryModal({ open, onClose, user }) {
 }
 
 // Profile Modal
-function ProfileModal({ open, onClose, user }) {
+function ProfileModal({ open, onClose, user, isSuperAdmin, onOpenAdminPanel }) {
   const [accountStatus, setAccountStatus] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -868,17 +880,20 @@ function ProfileModal({ open, onClose, user }) {
     if (!user) return;
     setLoading(true);
     try {
-      const [emailsRes, bypassRes] = await Promise.all([
-        fetch(`${API}/whitelist/emails`),
+      if (user.email?.toLowerCase() === SUPER_ADMIN_EMAIL) {
+        setAccountStatus({ type: 'Admin' });
+        return;
+      }
+
+      const [statusRes, bypassRes] = await Promise.all([
+        fetch(`${API}/whitelist/check/${encodeURIComponent(user.email)}`),
         fetch(`${API}/whitelist/bypass`)
       ]);
-      const emails = emailsRes.ok ? await emailsRes.json() : [];
+      const statusData = statusRes.ok ? await statusRes.json() : { is_whitelisted: false };
       const bypassData = bypassRes.ok ? await bypassRes.json() : { is_active: false };
 
-      const myEmail = Array.isArray(emails) ? emails.find(e => e.email === user.email.toLowerCase()) : null;
-
-      if (myEmail && myEmail.is_active) {
-        setAccountStatus({ type: 'Premium', expiry: myEmail.expiry_datetime });
+      if (statusData.is_whitelisted && !statusData.bypass_active) {
+        setAccountStatus({ type: 'Premium', expiry: null });
       } else if (bypassData.is_active) {
         setAccountStatus({ type: 'Free' });
       } else {
@@ -928,25 +943,30 @@ function ProfileModal({ open, onClose, user }) {
             <Loader2 className="w-5 h-5 animate-spin text-[#2C4A3B]" />
           ) : (
             <div className={`w-full p-4 rounded-xl border ${
-              accountStatus?.type === 'Premium'
+              accountStatus?.type === 'Premium' || accountStatus?.type === 'Admin'
                 ? 'bg-amber-50 border-amber-200'
                 : 'bg-[#F8F7F3] border-[#E3E0D8]'
             }`}>
               <div className="flex items-center gap-2 mb-1">
-                {accountStatus?.type === 'Premium' ? (
+                {accountStatus?.type === 'Premium' || accountStatus?.type === 'Admin' ? (
                   <Crown className="w-4 h-4 text-amber-600" />
                 ) : (
                   <Shield className="w-4 h-4 text-[#5C6B64]" />
                 )}
                 <span className={`text-sm font-bold ${
-                  accountStatus?.type === 'Premium' ? 'text-amber-800' : 'text-[#1A2E26]'
+                  accountStatus?.type === 'Premium' || accountStatus?.type === 'Admin' ? 'text-amber-800' : 'text-[#1A2E26]'
                 }`}>
-                  {accountStatus?.type === 'Premium' ? 'Premium' : 'Free'}
+                  {accountStatus?.type === 'Admin' ? 'Super Admin' : accountStatus?.type === 'Premium' ? 'Premium' : 'Free'}
                 </span>
               </div>
+              {accountStatus?.type === 'Admin' && (
+                <p className="text-xs text-amber-700 ml-6">
+                  Akses penuh ke Admin Panel
+                </p>
+              )}
               {accountStatus?.type === 'Premium' && (
                 <p className="text-xs text-amber-700 ml-6">
-                  Berlaku sampai: {formatExpiry(accountStatus.expiry)}
+                  Akses whitelist aktif
                 </p>
               )}
               {accountStatus?.type === 'Free' && (
@@ -955,6 +975,18 @@ function ProfileModal({ open, onClose, user }) {
                 </p>
               )}
             </div>
+          )}
+          {isSuperAdmin && (
+            <Button
+              data-testid="profile-admin-btn"
+              onClick={() => {
+                onClose();
+                onOpenAdminPanel?.();
+              }}
+              className="w-full bg-[#2C4A3B] hover:bg-[#1A2E26] text-white"
+            >
+              Admin Panel
+            </Button>
           )}
         </div>
       </DialogContent>
@@ -1183,8 +1215,9 @@ function WhitelistModal({ open, onClose }) {
 
   const fetchData = useCallback(async () => {
     try {
+      const headers = await getAuthHeaders();
       const [emailsRes, bypassRes] = await Promise.all([
-        fetch(`${API}/whitelist/emails`),
+        fetch(`${API}/whitelist/emails`, { headers }),
         fetch(`${API}/whitelist/bypass`)
       ]);
       if (emailsRes.ok) setEmails(await emailsRes.json());
@@ -1207,6 +1240,7 @@ function WhitelistModal({ open, onClose }) {
   const confirmAddEmail = async () => {
     setLoading(true);
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       let expiryDatetime = null;
       if (durationType === 'custom' && customDate && customTime) {
         expiryDatetime = new Date(`${customDate}T${customTime}`).toISOString();
@@ -1214,7 +1248,7 @@ function WhitelistModal({ open, onClose }) {
       
       await fetch(`${API}/whitelist/emails`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ email: pendingEmail, expiry_datetime: expiryDatetime })
       });
       
@@ -1235,7 +1269,8 @@ function WhitelistModal({ open, onClose }) {
   const handleDeleteEmail = async (email) => {
     if (!window.confirm(`Hapus ${email} dari whitelist?`)) return;
     try {
-      await fetch(`${API}/whitelist/emails/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      const headers = await getAuthHeaders();
+      await fetch(`${API}/whitelist/emails/${encodeURIComponent(email)}`, { method: 'DELETE', headers });
       fetchData();
     } catch (err) {
       console.error('Error deleting email:', err);
@@ -1264,9 +1299,10 @@ function WhitelistModal({ open, onClose }) {
 
   const updateBypass = async (isActive, expiryDatetime) => {
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       await fetch(`${API}/whitelist/bypass`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ is_active: isActive, expiry_datetime: expiryDatetime })
       });
       fetchData();
@@ -1302,7 +1338,7 @@ function WhitelistModal({ open, onClose }) {
                     System Prompts
                   </Label>
                   <p className="text-xs text-[#5C6B64]">
-                    Edit prompt AI untuk Anam, Oppa, Diag, dan Palui
+                    Edit prompt AI untuk Anam, Oppa, Diag, Palui, dan SMART
                   </p>
                 </div>
                 <Button
@@ -2118,6 +2154,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist, onReq
   const [showHistory, setShowHistory] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showSmart, setShowSmart] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingMode, setOnboardingMode] = useState(null);
   const [onboardingStepIndex, setOnboardingStepIndex] = useState(0);
@@ -2180,6 +2217,7 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist, onReq
   // Per-user localStorage keys
   const userKey = useCallback((key) => `aiSquad_${user?.id || 'default'}_${key}`, [user]);
   const isGuest = !user;
+  const isSuperAdmin = user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
 
   const requireLogin = useCallback(() => {
     if (!user) {
@@ -3172,7 +3210,14 @@ function MainApp({ user, apiKey, onLogout, onChangeApiKey, checkWhitelist, onReq
       </div>
 
       <HistoryModal open={showHistory} onClose={() => setShowHistory(false)} user={user} />
-      <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} user={user} />
+      <ProfileModal
+        open={showProfile}
+        onClose={() => setShowProfile(false)}
+        user={user}
+        isSuperAdmin={isSuperAdmin}
+        onOpenAdminPanel={() => setShowAdminPanel(true)}
+      />
+      <WhitelistModal open={showAdminPanel} onClose={() => setShowAdminPanel(false)} />
       <SmartChatWindow open={showSmart} onClose={() => setShowSmart(false)} apiKey={apiKey} soapContext={finalSoap} />
       <OnboardingTour
         open={showOnboarding}

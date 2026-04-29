@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 import uuid
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from starlette.middleware.cors import CORSMiddleware
 from supabase import Client, create_client
@@ -24,6 +24,7 @@ app = FastAPI()
 ADMIN_PASSWORD_HASH = hashlib.sha256(
     os.environ.get("ADMIN_PASSWORD", "buriead").encode()
 ).hexdigest()
+SUPER_ADMIN_EMAIL = os.environ.get("SUPER_ADMIN_EMAIL", "syafrie.yunz@gmail.com").lower()
 
 MAX_PASSWORD_ATTEMPTS = 3
 MAX_RESET_ATTEMPTS = 3
@@ -233,6 +234,29 @@ def table_first(table_name: str, filters: Dict[str, str]) -> Optional[dict]:
 
 def table_upsert(table_name: str, payload: dict) -> None:
     supabase.table(table_name).upsert(payload).execute()
+
+
+async def require_super_admin(authorization: Optional[str] = Header(default=None)) -> dict:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Invalid bearer token")
+
+    try:
+        auth_response = supabase.auth.get_user(token)
+        user = getattr(auth_response, "user", None)
+    except Exception as exc:  # pragma: no cover - defensive auth boundary
+        raise HTTPException(status_code=401, detail="Invalid session") from exc
+
+    if not user or not getattr(user, "email", None):
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    if user.email.lower() != SUPER_ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Super admin only")
+
+    return {"email": user.email.lower(), "id": getattr(user, "id", None)}
 
 
 async def get_bypass_status() -> BypassStatusResponse:
@@ -453,7 +477,8 @@ async def reset_lockout_timer(data: ResetTimerRequest):
 
 
 @app.get("/whitelist/emails")
-async def get_whitelist_emails():
+async def get_whitelist_emails(authorization: Optional[str] = Header(default=None)):
+    await require_super_admin(authorization)
     response = supabase.table("whitelist_emails").select("*").order("created_at", desc=True).execute()
     return [
         WhitelistEmailResponse(
@@ -467,7 +492,8 @@ async def get_whitelist_emails():
 
 
 @app.post("/whitelist/emails")
-async def add_whitelist_email(data: WhitelistEmailCreate):
+async def add_whitelist_email(data: WhitelistEmailCreate, authorization: Optional[str] = Header(default=None)):
+    await require_super_admin(authorization)
     email = data.email.lower()
     now = datetime.now(timezone.utc).isoformat()
     existing = table_first("whitelist_emails", {"email": email})
@@ -484,7 +510,8 @@ async def add_whitelist_email(data: WhitelistEmailCreate):
 
 
 @app.delete("/whitelist/emails/{email}")
-async def delete_whitelist_email(email: str):
+async def delete_whitelist_email(email: str, authorization: Optional[str] = Header(default=None)):
+    await require_super_admin(authorization)
     normalized = email.lower()
     existing = table_first("whitelist_emails", {"email": normalized})
     if not existing:
@@ -499,7 +526,8 @@ async def get_bypass_settings():
 
 
 @app.post("/whitelist/bypass")
-async def set_bypass_settings(data: BypassSettingsCreate):
+async def set_bypass_settings(data: BypassSettingsCreate, authorization: Optional[str] = Header(default=None)):
+    await require_super_admin(authorization)
     table_upsert(
         "bypass_settings",
         {
@@ -514,6 +542,14 @@ async def set_bypass_settings(data: BypassSettingsCreate):
 
 @app.get("/whitelist/check/{email}")
 async def check_whitelist(email: str):
+    normalized_email = email.lower()
+    if normalized_email == SUPER_ADMIN_EMAIL:
+        return WhitelistCheckResponse(
+            is_whitelisted=True,
+            bypass_active=False,
+            reason="Super admin",
+        )
+
     bypass = await get_bypass_status()
     if bypass.is_active:
         return WhitelistCheckResponse(
@@ -522,7 +558,7 @@ async def check_whitelist(email: str):
             reason="Bypass mode aktif",
         )
 
-    email_doc = table_first("whitelist_emails", {"email": email.lower()})
+    email_doc = table_first("whitelist_emails", {"email": normalized_email})
     if not email_doc:
         return WhitelistCheckResponse(
             is_whitelisted=False,
@@ -563,7 +599,8 @@ async def get_prompt(agent_id: str):
 
 
 @app.post("/prompts")
-async def update_prompt(data: SystemPromptUpdate):
+async def update_prompt(data: SystemPromptUpdate, authorization: Optional[str] = Header(default=None)):
+    await require_super_admin(authorization)
     if data.agent_id not in PROMPT_AGENT_IDS:
         raise HTTPException(status_code=400, detail="Invalid agent_id")
     table_upsert(
@@ -578,7 +615,8 @@ async def update_prompt(data: SystemPromptUpdate):
 
 
 @app.post("/prompts/reset/{agent_id}")
-async def reset_prompt(agent_id: str):
+async def reset_prompt(agent_id: str, authorization: Optional[str] = Header(default=None)):
+    await require_super_admin(authorization)
     if agent_id not in PROMPT_AGENT_IDS:
         raise HTTPException(status_code=400, detail="Invalid agent_id")
     supabase.table("system_prompts").delete().eq("agent_id", agent_id).execute()
